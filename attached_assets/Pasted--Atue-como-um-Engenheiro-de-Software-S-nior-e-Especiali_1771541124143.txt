@@ -1,0 +1,44 @@
+"Atue como um Engenheiro de Software Sênior e Especialista em Logística Internacional. Preciso construir um sistema de Gestão de Exportação (ERP Logístico) baseado em uma planilha de controle de papel kraft. O sistema deve substituir o controle manual e focar em integridade de dados e dashboards.
+
+1. Arquitetura de Dados (Database Schema)
+Crie uma estrutura de banco de dados relacional com as seguintes entidades:
+
+Clientes: Nome, País, Limite de Crédito, Termos de Pagamento.
+
+Produtos: Tipo (Ex: Standard Brown Kraft, Extensible), Gramatura, Preço Padrão.
+
+Ordens de Exportação (Vendas): Invoice, Fábrica, NFE, Booking/CRT, Número DUE, Parametrização (Cores: Verde/Amarelo/Vermelho).
+
+Logística: Modal (Rodoviário/Marítimo), Vessel (se marítimo), Data Embarque, Data Desembarque, Transit Time (calculado), Deadline DRA/CARGA.
+
+Financeiro: Valor Unitário, Quantidade, Total (calculado), Pagto (Termos), Vencimento, Data de Pagamento Real, ACC (Adiantamento de Câmbio), Fechamento de Câmbio.
+
+2. Funcionalidades Principais
+Formulário de Entrada Inteligente: Validação de campos. Se o modal for 'Rodoviário', oculte o campo 'Vessel'. Se a data de desembarque for preenchida, calcule o Transit Time automaticamente.
+
+Status Visual: Use o sistema de cores da planilha original (Verde para parametrizado, Vermelho para atrasos no financeiro).
+
+Gestão de Documentos: Possibilidade de anexar PDFs (NFE e CRT) a cada ordem.
+
+Filtros Avançados: Filtrar por País, Cliente, Mês de Embarque e Status de Pagamento.
+
+3. Dashboard de Operações (KPIs)
+Desenvolva uma tela de Dashboard com:
+
+Cards de Resumo: Faturamento Total do Mês, Volume Total (Quantidade), e Total de Invoices Pendentes.
+
+Gráfico de Barras: Faturamento por País (Argentina, Paraguai, Bolívia, etc).
+
+Gráfico de Rosca: Mix de Produtos (Tipos de Papel vendidos).
+
+Linha do Tempo: Projeção de recebíveis (Cash Flow) baseada na coluna 'Vencimento'.
+
+4. Requisitos de UI/UX
+Interface limpa, moderna, com tema claro/escuro.
+
+Tabela principal com 'Infinite Scroll' ou paginação eficiente, similar à experiência da planilha mas com ações (Editar, Visualizar, Excluir).
+
+Alertas visuais para faturas que vencem em menos de 48h e ainda não têm 'Data de Pagamento'.
+
+Tecnologias sugeridas: Node, react, Prisma e postgress puro.
+
