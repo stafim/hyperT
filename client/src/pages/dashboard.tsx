@@ -10,8 +10,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { DollarSign, Package, FileText, TrendingUp, Globe, Truck, Ship, ShieldCheck, BarChart3, CalendarDays, Landmark, Settings2, Layers, Navigation, ShoppingCart, Target, Percent, Wallet, Send, CheckCircle2, AlertCircle, Loader2, CalendarClock } from "lucide-react";
+import { DollarSign, Package, FileText, TrendingUp, Globe, Truck, Ship, ShieldCheck, BarChart3, CalendarDays, Landmark, Settings2, Layers, Navigation, ShoppingCart, Target, Percent, Wallet, Send, CheckCircle2, AlertCircle, Loader2, CalendarClock, ZoomIn, X, ArrowLeft } from "lucide-react";
 import { SiTelegram } from "react-icons/si";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line, Legend, AreaChart, Area
@@ -291,6 +292,369 @@ function TelegramPanel() {
   );
 }
 
+// ─── Drill-Down ───────────────────────────────────────────────────────────────
+
+type DrillDownState = {
+  type: "country" | "client" | "month" | "product";
+  value: string;
+} | null;
+
+const MONTH_NAMES_PT = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+
+function getMonthLabel(dateStr: string | null | undefined): string {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  return `${MONTH_NAMES_PT[d.getMonth()]}/${d.getFullYear()}`;
+}
+
+function DrillDownDialog({
+  state,
+  onClose,
+  orders,
+}: {
+  state: DrillDownState;
+  onClose: () => void;
+  orders: ExportOrderWithDetails[];
+}) {
+  const open = !!state;
+
+  const fmt = (n: number) =>
+    new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
+
+  const data = useMemo(() => {
+    if (!state) return null;
+    const { type, value } = state;
+
+    let filtered: ExportOrderWithDetails[] = [];
+    if (type === "country") filtered = orders.filter(o => o.client?.country === value);
+    else if (type === "client") filtered = orders.filter(o => o.client?.name === value);
+    else if (type === "month") filtered = orders.filter(o => getMonthLabel(o.createdAt?.toString()) === value);
+    else if (type === "product") filtered = orders.filter(o => o.product?.type === value);
+
+    const total = filtered.reduce((s, o) => s + Number(o.total ?? 0), 0);
+    const count = filtered.length;
+    const avgTicket = count > 0 ? total / count : 0;
+    const pago = filtered.filter(o => o.statusPagamento === "pago").reduce((s, o) => s + Number(o.total ?? 0), 0);
+    const pendente = filtered.filter(o => o.statusPagamento === "pendente").reduce((s, o) => s + Number(o.total ?? 0), 0);
+    const atrasado = filtered.filter(o => o.statusPagamento === "atrasado").reduce((s, o) => s + Number(o.total ?? 0), 0);
+
+    // Monthly trend (for country / client / product drill-downs)
+    const monthMap: Record<string, number> = {};
+    filtered.forEach(o => {
+      const key = getMonthLabel(o.createdAt?.toString());
+      if (key) monthMap[key] = (monthMap[key] ?? 0) + Number(o.total ?? 0);
+    });
+    const byMonth = Object.entries(monthMap)
+      .sort(([a], [b]) => {
+        const [am, ay] = a.split("/");
+        const [bm, by] = b.split("/");
+        const ai = MONTH_NAMES_PT.indexOf(am) + parseInt(ay) * 12;
+        const bi = MONTH_NAMES_PT.indexOf(bm) + parseInt(by) * 12;
+        return ai - bi;
+      })
+      .map(([month, total]) => ({ month, total }));
+
+    // By client (for country / product drill-downs)
+    const clientMap: Record<string, number> = {};
+    filtered.forEach(o => {
+      const name = o.client?.name ?? "—";
+      clientMap[name] = (clientMap[name] ?? 0) + Number(o.total ?? 0);
+    });
+    const byClient = Object.entries(clientMap)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 8)
+      .map(([name, total]) => ({ name, total }));
+
+    // By product (for client drill-down)
+    const productMap: Record<string, number> = {};
+    filtered.forEach(o => {
+      const name = o.product?.type ?? "—";
+      productMap[name] = (productMap[name] ?? 0) + Number(o.total ?? 0);
+    });
+    const byProduct = Object.entries(productMap)
+      .sort(([, a], [, b]) => b - a)
+      .map(([name, total]) => ({ name, total }));
+
+    // By country (for month drill-down)
+    const countryMap: Record<string, number> = {};
+    filtered.forEach(o => {
+      const name = o.client?.country ?? "—";
+      countryMap[name] = (countryMap[name] ?? 0) + Number(o.total ?? 0);
+    });
+    const byCountry = Object.entries(countryMap)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 8)
+      .map(([country, total]) => ({ country, total }));
+
+    // By payment status (for month drill-down)
+    const byStatus = [
+      { status: "Pago", value: pago, color: "#1D4ED8" },
+      { status: "Pendente", value: pendente, color: "#94A3B8" },
+      { status: "Atrasado", value: atrasado, color: "#DC2626" },
+    ].filter(s => s.value > 0);
+
+    // Top orders
+    const topOrders = [...filtered].sort((a, b) => Number(b.total ?? 0) - Number(a.total ?? 0)).slice(0, 6);
+
+    const uniqueClients = new Set(filtered.map(o => o.client?.name)).size;
+
+    return { filtered, total, count, avgTicket, pago, pendente, atrasado, byMonth, byClient, byProduct, byCountry, byStatus, topOrders, uniqueClients };
+  }, [state, orders]);
+
+  if (!state || !data) return null;
+
+  const TOOLTIP_STYLE = { borderRadius: "6px", border: "1px solid hsl(var(--border))", backgroundColor: "hsl(var(--popover))", color: "hsl(var(--popover-foreground))" };
+
+  const typeLabels: Record<string, string> = {
+    country: "País", client: "Cliente", month: "Mês", product: "Produto",
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-4xl w-full max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+        <DialogHeader>
+          <div className="flex items-center gap-2">
+            <ZoomIn className="h-4 w-4 text-primary" />
+            <DialogTitle className="text-base">
+              {typeLabels[state.type]}: <span className="text-primary">{state.value}</span>
+            </DialogTitle>
+          </div>
+        </DialogHeader>
+
+        <div className="space-y-6 pt-1">
+          {/* KPI row */}
+          <div className={`grid gap-3 ${state.type === "month" ? "grid-cols-4" : "grid-cols-3"}`}>
+            <div className="rounded-lg border p-3">
+              <p className="text-xs text-muted-foreground">Total</p>
+              <p className="text-lg font-bold text-primary">{fmt(data.total)}</p>
+            </div>
+            <div className="rounded-lg border p-3">
+              <p className="text-xs text-muted-foreground">Ordens</p>
+              <p className="text-lg font-bold">{data.count}</p>
+            </div>
+            {state.type === "month" ? (
+              <>
+                <div className="rounded-lg border p-3">
+                  <p className="text-xs text-muted-foreground">Pago</p>
+                  <p className="text-lg font-bold text-blue-600">{fmt(data.pago)}</p>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <p className="text-xs text-muted-foreground">Pendente/Atrasado</p>
+                  <p className="text-lg font-bold text-amber-500">{fmt(data.pendente + data.atrasado)}</p>
+                </div>
+              </>
+            ) : state.type === "product" ? (
+              <div className="rounded-lg border p-3">
+                <p className="text-xs text-muted-foreground">Clientes</p>
+                <p className="text-lg font-bold">{data.uniqueClients}</p>
+              </div>
+            ) : (
+              <div className="rounded-lg border p-3">
+                <p className="text-xs text-muted-foreground">Ticket Médio</p>
+                <p className="text-lg font-bold">{fmt(data.avgTicket)}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Sub-charts */}
+          {(state.type === "country" || state.type === "product") && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* By client */}
+              {data.byClient.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Por Cliente</p>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart data={data.byClient} layout="vertical" margin={{ top: 2, right: 16, left: 8, bottom: 2 }}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
+                      <XAxis type="number" tick={{ fontSize: 10 }} className="fill-muted-foreground" tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
+                      <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} className="fill-muted-foreground" width={80} />
+                      <Tooltip formatter={(v: number) => [fmt(v), "Faturamento"]} contentStyle={TOOLTIP_STYLE} />
+                      <Bar dataKey="total" fill="#2276BB" radius={[0, 4, 4, 0]}>
+                        {data.byClient.map((_, i) => <Cell key={i} fill={["#2276BB","#1a5e94","#1E4D7B","#3b82f6","#60a5fa","#93c5fd","#2563eb","#1d4ed8"][i % 8]} />)}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+              {/* Monthly trend */}
+              {data.byMonth.length > 1 && (
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Evolução Mensal</p>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <AreaChart data={data.byMonth} margin={{ top: 4, right: 16, left: 8, bottom: 2 }}>
+                      <defs>
+                        <linearGradient id="ddGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#2276BB" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#2276BB" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                      <XAxis dataKey="month" tick={{ fontSize: 10 }} tickFormatter={v => v.split("/")[0]} className="fill-muted-foreground" />
+                      <YAxis tick={{ fontSize: 10 }} className="fill-muted-foreground" tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
+                      <Tooltip formatter={(v: number) => [fmt(v), "Faturamento"]} contentStyle={TOOLTIP_STYLE} />
+                      <Area type="monotone" dataKey="total" stroke="#2276BB" strokeWidth={2} fill="url(#ddGrad)" dot={{ r: 3, fill: "#2276BB", strokeWidth: 0 }} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </div>
+          )}
+
+          {state.type === "client" && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Monthly trend */}
+              {data.byMonth.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Evolução Mensal</p>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <AreaChart data={data.byMonth} margin={{ top: 4, right: 16, left: 8, bottom: 2 }}>
+                      <defs>
+                        <linearGradient id="ddGradC" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#2276BB" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#2276BB" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                      <XAxis dataKey="month" tick={{ fontSize: 10 }} tickFormatter={v => v.split("/")[0]} className="fill-muted-foreground" />
+                      <YAxis tick={{ fontSize: 10 }} className="fill-muted-foreground" tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
+                      <Tooltip formatter={(v: number) => [fmt(v), "Faturamento"]} contentStyle={TOOLTIP_STYLE} />
+                      <Area type="monotone" dataKey="total" stroke="#2276BB" strokeWidth={2} fill="url(#ddGradC)" dot={{ r: 3, fill: "#2276BB", strokeWidth: 0 }} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+              {/* By product */}
+              {data.byProduct.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Por Produto</p>
+                  <div className="flex items-center gap-2">
+                    <ResponsiveContainer width="55%" height={200}>
+                      <PieChart>
+                        <Pie data={data.byProduct} dataKey="total" nameKey="name" cx="50%" cy="50%" innerRadius={40} outerRadius={70} paddingAngle={3}>
+                          {data.byProduct.map((_, i) => <Cell key={i} fill={["#2276BB","#1a5e94","#3b82f6","#60a5fa","#93c5fd"][i % 5]} />)}
+                        </Pie>
+                        <Tooltip formatter={(v: number) => [fmt(v), "Faturamento"]} contentStyle={TOOLTIP_STYLE} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="flex flex-col gap-2 w-[45%]">
+                      {data.byProduct.map((p, i) => (
+                        <div key={p.name} className="flex items-center gap-2">
+                          <div className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: ["#2276BB","#1a5e94","#3b82f6","#60a5fa","#93c5fd"][i % 5] }} />
+                          <div className="min-w-0">
+                            <p className="text-xs font-medium truncate">{p.name}</p>
+                            <p className="text-xs text-muted-foreground">{fmt(p.total)}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {state.type === "month" && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* By payment status */}
+              {data.byStatus.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Por Status de Pagamento</p>
+                  <div className="flex items-center gap-2">
+                    <ResponsiveContainer width="55%" height={200}>
+                      <PieChart>
+                        <Pie data={data.byStatus} dataKey="value" nameKey="status" cx="50%" cy="50%" innerRadius={40} outerRadius={70} paddingAngle={3}>
+                          {data.byStatus.map((s) => <Cell key={s.status} fill={s.color} />)}
+                        </Pie>
+                        <Tooltip formatter={(v: number) => [fmt(v), "Valor"]} contentStyle={TOOLTIP_STYLE} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="flex flex-col gap-2 w-[45%]">
+                      {data.byStatus.map(s => (
+                        <div key={s.status} className="flex items-center gap-2">
+                          <div className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
+                          <div>
+                            <p className="text-xs font-medium">{s.status}</p>
+                            <p className="text-xs text-muted-foreground">{fmt(s.value)}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+              {/* By country */}
+              {data.byCountry.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Por País</p>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart data={data.byCountry} margin={{ top: 2, right: 16, left: 8, bottom: 2 }}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                      <XAxis dataKey="country" tick={{ fontSize: 10 }} className="fill-muted-foreground" />
+                      <YAxis tick={{ fontSize: 10 }} className="fill-muted-foreground" tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
+                      <Tooltip formatter={(v: number) => [fmt(v), "Faturamento"]} contentStyle={TOOLTIP_STYLE} />
+                      <Bar dataKey="total" fill="#2276BB" radius={[4, 4, 0, 0]}>
+                        {data.byCountry.map((_, i) => <Cell key={i} fill={["#2276BB","#1a5e94","#3b82f6","#60a5fa","#93c5fd","#1E4D7B","#2563eb","#1d4ed8"][i % 8]} />)}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Orders table */}
+          {data.topOrders.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                {data.topOrders.length < data.count ? `Top ${data.topOrders.length} Ordens (de ${data.count})` : `Ordens (${data.count})`}
+              </p>
+              <div className="rounded-lg border overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/40">
+                    <tr>
+                      <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">Invoice</th>
+                      <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">Cliente</th>
+                      <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">Produto</th>
+                      <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground">Total</th>
+                      <th className="text-center px-3 py-2 text-xs font-medium text-muted-foreground">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.topOrders.map((o, i) => (
+                      <tr key={o.id} className={i % 2 === 0 ? "" : "bg-muted/20"}>
+                        <td className="px-3 py-2 text-xs font-mono">{o.invoice}</td>
+                        <td className="px-3 py-2 text-xs">{o.client?.name ?? "—"}</td>
+                        <td className="px-3 py-2 text-xs">{o.product?.type ?? "—"}</td>
+                        <td className="px-3 py-2 text-xs text-right font-medium">{fmt(Number(o.total ?? 0))}</td>
+                        <td className="px-3 py-2 text-xs text-center">
+                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                            o.statusPagamento === "pago" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300" :
+                            o.statusPagamento === "atrasado" ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300" :
+                            "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                          }`}>
+                            {o.statusPagamento}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {data.count === 0 && (
+            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-2">
+              <ZoomIn className="h-8 w-8 opacity-30" />
+              <p className="text-sm">Nenhuma ordem encontrada para este filtro</p>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 type SectionFilter = "all" | "financeiro" | "operacional" | "diversos" | "cotacoes-vendas";
 
 const SECTION_LABELS: { value: SectionFilter; label: string }[] = [
@@ -306,6 +670,7 @@ export default function Dashboard() {
   const [selectedSection, setSelectedSection] = useState<SectionFilter>("all");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
+  const [drillDown, setDrillDown] = useState<DrillDownState>(null);
 
   const dateRange = useMemo(() => {
     if (selectedPeriod === "custom") {
@@ -681,11 +1046,14 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card>
+        <Card className="cursor-pointer hover:ring-1 hover:ring-primary/30 transition-all" onClick={() => {}}>
           <CardHeader>
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <Globe className="h-4 w-4 text-muted-foreground" />
               Faturamento por País
+              <span className="ml-auto flex items-center gap-1 text-[10px] text-muted-foreground font-normal">
+                <ZoomIn className="h-3 w-3" /> clique p/ detalhar
+              </span>
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -699,7 +1067,13 @@ export default function Dashboard() {
                     formatter={(value: number) => [formatCurrency(value), "Faturamento"]}
                     contentStyle={{ borderRadius: "6px", border: "1px solid hsl(var(--border))", backgroundColor: "hsl(var(--popover))", color: "hsl(var(--popover-foreground))" }}
                   />
-                  <Bar dataKey="total" fill="#2276BB" radius={[4, 4, 0, 0]} />
+                  <Bar
+                    dataKey="total"
+                    fill="#2276BB"
+                    radius={[4, 4, 0, 0]}
+                    cursor="pointer"
+                    onClick={(data: any) => setDrillDown({ type: "country", value: data.country })}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -744,6 +1118,9 @@ export default function Dashboard() {
           <CardTitle className="text-sm font-medium flex items-center gap-2">
             <DollarSign className="h-4 w-4 text-muted-foreground" />
             Faturamento por Cliente (Top 10)
+            <span className="ml-auto flex items-center gap-1 text-[10px] text-muted-foreground font-normal">
+              <ZoomIn className="h-3 w-3" /> clique p/ detalhar
+            </span>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -757,7 +1134,13 @@ export default function Dashboard() {
                   formatter={(value: number) => [formatCurrency(value), "Faturamento"]}
                   contentStyle={{ borderRadius: "6px", border: "1px solid hsl(var(--border))", backgroundColor: "hsl(var(--popover))", color: "hsl(var(--popover-foreground))" }}
                 />
-                <Bar dataKey="total" fill="#2276BB" radius={[0, 4, 4, 0]} />
+                <Bar
+                  dataKey="total"
+                  fill="#2276BB"
+                  radius={[0, 4, 4, 0]}
+                  cursor="pointer"
+                  onClick={(data: any) => setDrillDown({ type: "client", value: data.client })}
+                />
               </BarChart>
             </ResponsiveContainer>
           ) : (
@@ -771,12 +1154,20 @@ export default function Dashboard() {
           <CardTitle className="text-sm font-medium flex items-center gap-2">
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
             Receita por Mês — {new Date().getFullYear()}
+            <span className="ml-auto flex items-center gap-1 text-[10px] text-muted-foreground font-normal">
+              <ZoomIn className="h-3 w-3" /> clique p/ detalhar
+            </span>
           </CardTitle>
         </CardHeader>
         <CardContent>
           {stats?.monthlyRevenueFull ? (
             <ResponsiveContainer width="100%" height={280}>
-              <AreaChart data={stats.monthlyRevenueFull} margin={{ top: 10, right: 20, left: 10, bottom: 5 }}>
+              <AreaChart
+                data={stats.monthlyRevenueFull}
+                margin={{ top: 10, right: 20, left: 10, bottom: 5 }}
+                onClick={(d: any) => { if (d?.activeLabel) setDrillDown({ type: "month", value: d.activeLabel }); }}
+                style={{ cursor: "pointer" }}
+              >
                 <defs>
                   <linearGradient id="gradReceita" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#2276BB" stopOpacity={0.3} />
@@ -822,6 +1213,9 @@ export default function Dashboard() {
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <Package className="h-4 w-4 text-muted-foreground" />
               Faturamento por Produto
+              <span className="ml-auto flex items-center gap-1 text-[10px] text-muted-foreground font-normal">
+                <ZoomIn className="h-3 w-3" /> clique p/ detalhar
+              </span>
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -835,7 +1229,12 @@ export default function Dashboard() {
                     formatter={(value: number) => [formatCurrency(value), "Faturamento"]}
                     contentStyle={{ borderRadius: "6px", border: "1px solid hsl(var(--border))", backgroundColor: "hsl(var(--popover))", color: "hsl(var(--popover-foreground))" }}
                   />
-                  <Bar dataKey="total" radius={[4, 4, 0, 0]}>
+                  <Bar
+                    dataKey="total"
+                    radius={[4, 4, 0, 0]}
+                    cursor="pointer"
+                    onClick={(data: any) => setDrillDown({ type: "product", value: data.product })}
+                  >
                     {stats.revenueByProduct.map((_, index) => (
                       <Cell key={`prod-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
@@ -1413,6 +1812,12 @@ export default function Dashboard() {
         </Card>
       )}
       </>}
+
+      <DrillDownDialog
+        state={drillDown}
+        onClose={() => setDrillDown(null)}
+        orders={orders ?? []}
+      />
     </div>
   );
 }
