@@ -73,13 +73,14 @@ shared/
 - 48h due date alerts
 - Advanced filters by country, status, month
 - Currency exchange page "Câmbio" (BRL, ARS, CLP, UYU, PYG, MXN vs USD) with 5min server-side cache
-- **Currency Exposure Dashboard** (/exposicao-cambial): FX risk analysis on open orders
-  - 4 KPI cards: Total Exposure (USD), Currencies Exposed, Risk at +5%, Risk at +10%
-  - Pie chart: exposure distribution by currency
-  - Bar chart: impact simulation at +/-5% and +/-10% depreciation/appreciation
-  - Detailed table per currency: orders count, USD total, current rate, 24h variation, local value, impact at -5%/-10%
-  - Total row with aggregated values
-  - Real-time exchange rates from /api/quotes
+- **Currency Exposure Dashboard** (/exposicao-cambial): USD-only receivables tracking by payment deadline
+  - 4 KPI cards: Total Exposure (USD), Em Atraso (USD), Vence em 7 dias (USD), Países Expostos
+  - Pie chart: exposure distribution by country (USD)
+  - Bar chart: receivables by due month (USD)
+  - Summary table per country: order count, total USD, % of total
+  - Orders table sorted by due date with urgency badges (overdue, due in 7d, etc.)
+  - Order detail dialog showing USD totals, due date, payment terms, and schedule timeline
+  - No exchange rate dependency — all values in USD per business rule
 - **Dedicated Vencimentos page** (/vencimentos): full due dates report for pending invoices
   - 5 KPI cards: Total Pendente, Vencidos (red), Urgentes 48h (orange), Próximos 7 dias (yellow), Valor Total Pendente
   - Color-coded urgency badges: Vencido (red), Urgente (orange), Próximo (yellow), Futuro (blue)
