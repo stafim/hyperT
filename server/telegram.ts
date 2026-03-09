@@ -387,26 +387,57 @@ async function fetchWeather(): Promise<string> {
   }
 }
 
+function formatBcbDate(d: Date): string {
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  return `${mm}-${dd}-${yyyy}`;
+}
+
+async function fetchBcbPtax(dateStr: string): Promise<number | null> {
+  const url = `https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoDolarDia(dataCotacao=@dataCotacao)?@dataCotacao='${dateStr}'&$top=1&$orderby=dataHoraCotacao%20desc&$format=json&$select=cotacaoCompra,cotacaoVenda`;
+  const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+  if (!res.ok) return null;
+  const json = await res.json() as any;
+  const items: any[] = json?.value ?? [];
+  if (!items.length) return null;
+  return parseFloat(items[0].cotacaoVenda);
+}
+
 async function fetchDollarRate(): Promise<string> {
   try {
-    const res = await fetch("https://economia.awesomeapi.com.br/json/daily/USD-BRL/2");
-    const data = await res.json() as any[];
-    if (!data || data.length < 1) return "Não foi possível obter a cotação do dólar.";
-    const today = data[0];
-    const yesterday = data[1];
-    const todayRate = parseFloat(today.bid).toFixed(2).replace(".", ",");
-    const todayHigh = parseFloat(today.high).toFixed(2).replace(".", ",");
-    const todayLow = parseFloat(today.low).toFixed(2).replace(".", ",");
-    const pctChange = parseFloat(today.pctChange);
-    const direction = pctChange >= 0 ? "alta" : "queda";
-    const absPct = Math.abs(pctChange).toFixed(2).replace(".", ",");
+    const now = new Date();
+    const todayDate = formatBcbDate(now);
 
-    let text = `A cotação do dólar americano hoje está em ${todayRate} reais`;
-    text += `, com máxima de ${todayHigh} e mínima de ${todayLow}.`;
-    if (yesterday) {
-      const yRate = parseFloat(yesterday.bid).toFixed(2).replace(".", ",");
-      text += ` Ontem o dólar fechou a ${yRate} reais, representando uma ${direction} de ${absPct} por cento no dia.`;
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (yesterday.getDay() === 0) yesterday.setDate(yesterday.getDate() - 1);
+    if (yesterday.getDay() === 6) yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayDate = formatBcbDate(yesterday);
+
+    const [rateToday, rateYesterday] = await Promise.all([
+      fetchBcbPtax(todayDate),
+      fetchBcbPtax(yesterdayDate),
+    ]);
+
+    if (rateToday === null && rateYesterday === null) {
+      return "Não foi possível obter a cotação do dólar no momento.";
     }
+
+    const mainRate = rateToday ?? rateYesterday!;
+    const rateStr = mainRate.toFixed(2).replace(".", ",");
+    const label = rateToday !== null ? "hoje" : "no último dia útil";
+
+    let text = `A cotação do dólar americano ${label} está em ${rateStr} reais, conforme o PTAX do Banco Central do Brasil.`;
+
+    if (rateToday !== null && rateYesterday !== null) {
+      const diff = rateToday - rateYesterday;
+      const pct = Math.abs((diff / rateYesterday) * 100).toFixed(2).replace(".", ",");
+      const direction = diff >= 0 ? "alta" : "queda";
+      const yStr = rateYesterday.toFixed(2).replace(".", ",");
+      text += ` Em relação ao dia anterior, que fechou em ${yStr} reais, houve uma ${direction} de ${pct} por cento.`;
+    }
+
     return text;
   } catch {
     return "Não foi possível obter a cotação do dólar no momento.";
@@ -447,11 +478,11 @@ export async function sendTelegramAudioPro(): Promise<{ ok: boolean; error?: str
   if (!BOT_TOKEN || !CHAT_ID) {
     return { ok: false, error: "Credenciais do Telegram não configuradas." };
   }
-  const summaryText = await buildAudioProSummaryText();
-  const audioBuffer = await textToSpeech(summaryText, "nova", "mp3");
-
-  const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendAudio`;
   try {
+    const summaryText = await buildAudioProSummaryText();
+    const audioBuffer = await textToSpeech(summaryText, "nova", "mp3");
+
+    const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendAudio`;
     const form = new FormData();
     form.append("chat_id", CHAT_ID);
     form.append("audio", new Blob([audioBuffer], { type: "audio/mpeg" }), "briefing-pro-hypertrade.mp3");
@@ -463,7 +494,7 @@ export async function sendTelegramAudioPro(): Promise<{ ok: boolean; error?: str
     if (!data.ok) return { ok: false, error: data.description ?? "Erro desconhecido" };
     return { ok: true };
   } catch (e: any) {
-    return { ok: false, error: e.message };
+    return { ok: false, error: e.message ?? "Erro interno ao gerar áudio PRO" };
   }
 }
 
