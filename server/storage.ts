@@ -3,14 +3,14 @@ import { count as drizzleCount } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import {
-  suppliers, clients, clientDocuments, products, quotations, quotationSendLog, exportOrders, orderAuditLog, platformUsers, shipmentTracking,
+  suppliers, clients, clientDocuments, products, quotations, quotationSendLog, quotationNotes, exportOrders, orderAuditLog, platformUsers, shipmentTracking,
   documentos, documentoAuditLog, lpco, telegramNotificationConfig,
   type Supplier, type InsertSupplier,
   type Client, type InsertClient,
   type ClientDocument, type InsertClientDocument,
   type Product, type InsertProduct,
   type Quotation, type InsertQuotation, type QuotationWithDetails,
-  type QuotationSendLogEntry,
+  type QuotationSendLogEntry, type QuotationNote, type InsertQuotationNote,
   type ExportOrder, type InsertExportOrder,
   type ExportOrderWithDetails,
   type OrderAuditLogEntry,
@@ -55,6 +55,9 @@ export interface IStorage {
   deleteQuotation(id: number): Promise<void>;
   getQuotationSendLog(quotationId: number): Promise<QuotationSendLogEntry[]>;
   createQuotationSendLog(data: { quotationId: number; method: "email" | "whatsapp"; userName: string; recipientInfo?: string }): Promise<QuotationSendLogEntry>;
+  getQuotationNotes(quotationId: number): Promise<QuotationNote[]>;
+  createQuotationNote(data: InsertQuotationNote): Promise<QuotationNote>;
+  deleteQuotationNote(id: number): Promise<void>;
 
   getOrders(): Promise<ExportOrderWithDetails[]>;
   getOrdersPaginated(params: { page: number; limit: number; search?: string; country?: string; status?: string; month?: string }): Promise<{ data: ExportOrderWithDetails[]; total: number }>;
@@ -283,6 +286,21 @@ export class DatabaseStorage implements IStorage {
       recipientInfo: data.recipientInfo || null,
     }).returning();
     return entry;
+  }
+
+  async getQuotationNotes(quotationId: number): Promise<QuotationNote[]> {
+    return db.select().from(quotationNotes)
+      .where(eq(quotationNotes.quotationId, quotationId))
+      .orderBy(desc(quotationNotes.createdAt));
+  }
+
+  async createQuotationNote(data: InsertQuotationNote): Promise<QuotationNote> {
+    const [note] = await db.insert(quotationNotes).values(data).returning();
+    return note;
+  }
+
+  async deleteQuotationNote(id: number): Promise<void> {
+    await db.delete(quotationNotes).where(eq(quotationNotes.id, id));
   }
 
   async getOrders(): Promise<ExportOrderWithDetails[]> {

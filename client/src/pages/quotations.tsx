@@ -17,8 +17,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import {
   Plus, Search, Pencil, Trash2, FileCheck, Send, Mail, MessageCircle,
   ArrowRight, ChevronDown, ChevronRight, Clock, Eye, TrendingUp, FileDown,
+  LayoutGrid, List, StickyNote, User, X, ChevronUp,
 } from "lucide-react";
-import { insertQuotationSchema, type QuotationWithDetails, type InsertQuotation, type Client, type Product, type Supplier, type QuotationSendLogEntry } from "@shared/schema";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { insertQuotationSchema, type QuotationWithDetails, type InsertQuotation, type Client, type Product, type Supplier, type QuotationSendLogEntry, type QuotationNote } from "@shared/schema";
 import { z } from "zod";
 import { useLocation } from "wouter";
 import logoPath from "@assets/Captura_de_tela_2026-02-27_111909_1772203458683.png";
@@ -762,6 +764,279 @@ function SendLogPanel({ quotationId }: { quotationId: number }) {
   );
 }
 
+// ─── Kanban: card detail sheet ────────────────────────────────────────────────
+
+function KanbanCardDetail({
+  quotation,
+  open,
+  onClose,
+  onEdit,
+  onSell,
+  onDelete,
+}: {
+  quotation: QuotationWithDetails | null;
+  open: boolean;
+  onClose: () => void;
+  onEdit: (q: QuotationWithDetails) => void;
+  onSell: (q: QuotationWithDetails) => void;
+  onDelete: (id: number) => void;
+}) {
+  const { toast } = useToast();
+  const [noteText, setNoteText] = useState("");
+  const [showClient, setShowClient] = useState(false);
+
+  const { data: notes, isLoading: notesLoading } = useQuery<QuotationNote[]>({
+    queryKey: ["/api/quotations", quotation?.id, "notes"],
+    enabled: !!quotation?.id,
+  });
+
+  const addNoteMut = useMutation({
+    mutationFn: () => apiRequest("POST", `/api/quotations/${quotation!.id}/notes`, { content: noteText, author: "Valdinei" }).then(r => r.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/quotations", quotation!.id, "notes"] });
+      setNoteText("");
+    },
+    onError: (e: Error) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
+  });
+
+  const deleteNoteMut = useMutation({
+    mutationFn: (noteId: number) => apiRequest("DELETE", `/api/quotation-notes/${noteId}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/quotations", quotation?.id, "notes"] }),
+  });
+
+  if (!quotation) return null;
+  const c = quotation.client;
+
+  return (
+    <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
+      <SheetContent className="w-full sm:max-w-md overflow-y-auto" data-testid="sheet-kanban-detail">
+        <SheetHeader className="pb-3">
+          <SheetTitle className="flex items-center gap-2 text-base">
+            <Badge variant="secondary" className={statusColors[quotation.status]}>{statusLabels[quotation.status]}</Badge>
+            <span className="text-muted-foreground font-normal text-sm">Cotação #{quotation.id}</span>
+          </SheetTitle>
+        </SheetHeader>
+
+        <div className="space-y-4">
+          {/* Product / Financeiro */}
+          <div className="rounded-lg border p-3 space-y-1.5 text-sm">
+            <p className="font-semibold text-base">{quotation.product.type} — {quotation.product.grammage}</p>
+            <div className="grid grid-cols-2 gap-1 text-muted-foreground">
+              <span>Preço unit.:</span><span className="text-foreground font-medium">{formatCurrency(quotation.unitPrice)}</span>
+              <span>Quantidade:</span><span className="text-foreground font-medium">{quotation.quantity} ton</span>
+              <span>Total:</span><span className="text-foreground font-bold text-primary">{formatCurrency(quotation.total)}</span>
+              {quotation.paymentTerms && <><span>Pagamento:</span><span className="text-foreground">{quotation.paymentTerms}</span></>}
+              {quotation.validityDate && <><span>Validade:</span><span className="text-foreground">{formatDate(quotation.validityDate)}</span></>}
+              {quotation.supplier && <><span>Fornecedor:</span><span className="text-foreground">{quotation.supplier.name}</span></>}
+            </div>
+            {quotation.notes && (
+              <p className="text-muted-foreground italic text-xs border-t pt-1.5 mt-1.5">{quotation.notes}</p>
+            )}
+          </div>
+
+          {/* Cliente */}
+          <div className="rounded-lg border overflow-hidden">
+            <button
+              className="w-full flex items-center justify-between p-3 text-sm font-medium hover:bg-muted/40 transition-colors"
+              onClick={() => setShowClient(!showClient)}
+              data-testid="button-toggle-client-info"
+            >
+              <span className="flex items-center gap-2">
+                <User className="h-4 w-4 text-blue-500" />
+                {c.name}
+                <span className="text-muted-foreground font-normal">({c.country})</span>
+              </span>
+              {showClient ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+            </button>
+            {showClient && (
+              <div className="border-t p-3 bg-muted/20 grid grid-cols-2 gap-1 text-sm">
+                {c.email && <><span className="text-muted-foreground">Email:</span><span>{c.email}</span></>}
+                {c.phone && <><span className="text-muted-foreground">Telefone:</span><span>{c.phone}</span></>}
+                {c.responsavel && <><span className="text-muted-foreground">Responsável:</span><span>{c.responsavel}</span></>}
+                {c.registroNacional && <><span className="text-muted-foreground">Registro:</span><span>{c.registroNacional}</span></>}
+                {c.creditLimit && <><span className="text-muted-foreground">Limite crédito:</span><span>{formatCurrency(c.creditLimit)}</span></>}
+                {c.paymentTerms && <><span className="text-muted-foreground">Cond. pagamento:</span><span>{c.paymentTerms}</span></>}
+                {c.address && <><span className="text-muted-foreground">Endereço:</span><span>{c.address}{c.city ? `, ${c.city}` : ""}</span></>}
+              </div>
+            )}
+          </div>
+
+          {/* Ações */}
+          <div className="flex gap-2 flex-wrap">
+            <Button size="sm" variant="outline" onClick={() => { onEdit(quotation); onClose(); }} data-testid="button-kanban-edit" disabled={quotation.status === "convertida"}>
+              <Pencil className="h-3.5 w-3.5 mr-1" />Editar
+            </Button>
+            {(quotation.status === "rascunho" || quotation.status === "enviada" || quotation.status === "aceita") && (
+              <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => { if (confirm("Confirma a realização da venda?")) { onSell(quotation); onClose(); } }} data-testid="button-kanban-sell">
+                <ArrowRight className="h-3.5 w-3.5 mr-1" />Realizar Venda
+              </Button>
+            )}
+            <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => { if (confirm("Excluir esta cotação?")) { onDelete(quotation.id); onClose(); } }} disabled={quotation.status === "convertida"} data-testid="button-kanban-delete">
+              <Trash2 className="h-3.5 w-3.5 mr-1" />Excluir
+            </Button>
+          </div>
+
+          {/* Anotações */}
+          <div className="space-y-3">
+            <h3 className="font-semibold text-sm flex items-center gap-2">
+              <StickyNote className="h-4 w-4 text-amber-500" />
+              Anotações ({notes?.length ?? 0})
+            </h3>
+
+            <div className="flex gap-2">
+              <Textarea
+                placeholder="Adicionar anotação..."
+                value={noteText}
+                onChange={(e) => setNoteText(e.target.value)}
+                rows={2}
+                className="text-sm resize-none"
+                data-testid="input-kanban-note"
+              />
+              <Button
+                size="sm"
+                onClick={() => noteText.trim() && addNoteMut.mutate()}
+                disabled={addNoteMut.isPending || !noteText.trim()}
+                className="shrink-0"
+                data-testid="button-kanban-add-note"
+              >
+                {addNoteMut.isPending ? <Clock className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+              </Button>
+            </div>
+
+            {notesLoading ? (
+              <Skeleton className="h-16 w-full" />
+            ) : notes && notes.length > 0 ? (
+              <div className="space-y-2">
+                {notes.map((note) => (
+                  <div key={note.id} className="rounded-md border bg-amber-50 dark:bg-amber-950/20 p-3 text-sm relative group" data-testid={`note-item-${note.id}`}>
+                    <p className="pr-6 leading-relaxed">{note.content}</p>
+                    <div className="flex items-center gap-1.5 mt-1.5 text-xs text-muted-foreground">
+                      <User className="h-3 w-3" />
+                      <span>{note.author}</span>
+                      <span>·</span>
+                      <span>{note.createdAt ? new Date(note.createdAt).toLocaleString("pt-BR") : "-"}</span>
+                    </div>
+                    <button
+                      className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                      onClick={() => deleteNoteMut.mutate(note.id)}
+                      data-testid={`button-delete-note-${note.id}`}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground italic">Nenhuma anotação ainda.</p>
+            )}
+          </div>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+// ─── Kanban: board view ────────────────────────────────────────────────────────
+
+const KANBAN_COLUMNS: { key: string; label: string; color: string; headerBg: string }[] = [
+  { key: "rascunho",   label: "Rascunho",   color: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300",     headerBg: "border-gray-300 dark:border-gray-600" },
+  { key: "enviada",    label: "Enviada",    color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",     headerBg: "border-blue-400 dark:border-blue-600" },
+  { key: "aceita",     label: "Aceita",     color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300", headerBg: "border-green-400 dark:border-green-600" },
+  { key: "recusada",   label: "Recusada",   color: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300",         headerBg: "border-red-400 dark:border-red-600" },
+  { key: "convertida", label: "Convertida", color: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300", headerBg: "border-purple-400 dark:border-purple-600" },
+];
+
+function KanbanView({
+  quotations: list,
+  onEdit,
+  onSell,
+  onDelete,
+}: {
+  quotations: QuotationWithDetails[];
+  onEdit: (q: QuotationWithDetails) => void;
+  onSell: (q: QuotationWithDetails) => void;
+  onDelete: (id: number) => void;
+}) {
+  const [selected, setSelected] = useState<QuotationWithDetails | null>(null);
+
+  return (
+    <>
+      <div className="overflow-x-auto pb-4">
+        <div className="flex gap-3 min-w-max">
+          {KANBAN_COLUMNS.map((col) => {
+            const cards = list.filter((q) => q.status === col.key);
+            const colTotal = cards.reduce((s, q) => s + parseFloat(q.total), 0);
+            return (
+              <div key={col.key} className="flex flex-col w-72 shrink-0">
+                {/* Column header */}
+                <div className={`rounded-t-lg border-t-4 ${col.headerBg} bg-muted/40 dark:bg-muted/20 p-3 flex items-center justify-between mb-2`}>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${col.color}`}>{col.label}</span>
+                    <span className="text-xs text-muted-foreground bg-background border rounded-full w-5 h-5 flex items-center justify-center font-medium">{cards.length}</span>
+                  </div>
+                  {cards.length > 0 && (
+                    <span className="text-xs text-muted-foreground font-medium">{formatCurrency(colTotal)}</span>
+                  )}
+                </div>
+
+                {/* Cards */}
+                <div className="space-y-2 flex-1">
+                  {cards.length === 0 ? (
+                    <div className="rounded-lg border-2 border-dashed border-muted p-4 text-center text-xs text-muted-foreground">
+                      Sem cotações
+                    </div>
+                  ) : (
+                    cards.map((q) => (
+                      <div
+                        key={q.id}
+                        className="rounded-lg border bg-card hover:shadow-md hover:border-primary/30 transition-all cursor-pointer p-3 space-y-2"
+                        onClick={() => setSelected(q)}
+                        data-testid={`kanban-card-${q.id}`}
+                      >
+                        {/* Client */}
+                        <div className="flex items-center gap-1.5">
+                          <User className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                          <span className="font-semibold text-sm truncate">{q.client.name}</span>
+                          <span className="text-xs text-muted-foreground shrink-0">({q.client.country})</span>
+                        </div>
+                        {/* Product */}
+                        <p className="text-xs text-muted-foreground truncate">{q.product.type} — {q.product.grammage}</p>
+                        {/* Total */}
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-bold text-primary">{formatCurrency(q.total)}</span>
+                          <span className="text-xs text-muted-foreground">{q.quantity} ton</span>
+                        </div>
+                        {/* Footer */}
+                        {q.validityDate && (
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground border-t pt-1.5">
+                            <Clock className="h-3 w-3" />
+                            <span>Val: {formatDate(q.validityDate)}</span>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <KanbanCardDetail
+        quotation={selected}
+        open={!!selected}
+        onClose={() => setSelected(null)}
+        onEdit={onEdit}
+        onSell={onSell}
+        onDelete={onDelete}
+      />
+    </>
+  );
+}
+
+// ─── Main page ─────────────────────────────────────────────────────────────────
+
 export default function Quotations() {
   const { toast } = useToast();
   const [, navigate] = useLocation();
@@ -770,6 +1045,7 @@ export default function Quotations() {
   const [formOpen, setFormOpen] = useState(false);
   const [editQuotation, setEditQuotation] = useState<QuotationWithDetails | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [viewMode, setViewMode] = useState<"table" | "kanban">("table");
 
   const { data: quotationsList, isLoading } = useQuery<QuotationWithDetails[]>({ queryKey: ["/api/quotations"] });
 
@@ -829,7 +1105,26 @@ export default function Quotations() {
           <h1 className="text-2xl font-bold" data-testid="text-quotations-title">Cotacoes</h1>
           <p className="text-muted-foreground text-sm">Gerenciar cotacoes comerciais de exportacao</p>
         </div>
-        <Dialog open={formOpen} onOpenChange={(v) => { setFormOpen(v); if (!v) setEditQuotation(null); }}>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center rounded-md border overflow-hidden">
+            <button
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm transition-colors ${viewMode === "table" ? "bg-primary text-primary-foreground" : "hover:bg-muted/50"}`}
+              onClick={() => setViewMode("table")}
+              data-testid="button-view-table"
+            >
+              <List className="h-4 w-4" />
+              Lista
+            </button>
+            <button
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm transition-colors ${viewMode === "kanban" ? "bg-primary text-primary-foreground" : "hover:bg-muted/50"}`}
+              onClick={() => setViewMode("kanban")}
+              data-testid="button-view-kanban"
+            >
+              <LayoutGrid className="h-4 w-4" />
+              Kanban
+            </button>
+          </div>
+          <Dialog open={formOpen} onOpenChange={(v) => { setFormOpen(v); if (!v) setEditQuotation(null); }}>
           <DialogTrigger asChild>
             <Button data-testid="button-new-quotation" onClick={() => { setEditQuotation(null); setFormOpen(true); }}>
               <Plus className="h-4 w-4 mr-2" />
@@ -841,6 +1136,7 @@ export default function Quotations() {
             <QuotationForm editQuotation={editQuotation} onSuccess={() => { setFormOpen(false); setEditQuotation(null); }} />
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <div className="flex gap-3 flex-wrap">
@@ -873,6 +1169,13 @@ export default function Quotations() {
         <div className="space-y-2">
           {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
         </div>
+      ) : viewMode === "kanban" ? (
+        <KanbanView
+          quotations={filtered}
+          onEdit={(q) => { setEditQuotation(q); setFormOpen(true); }}
+          onSell={(q) => sellMutation.mutate(q)}
+          onDelete={(id) => deleteMutation.mutate(id)}
+        />
       ) : filtered.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16">

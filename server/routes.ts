@@ -229,6 +229,31 @@ export async function registerRoutes(
     res.status(201).json(entry);
   });
 
+  app.get("/api/quotations/:id/notes", async (req, res) => {
+    const notes = await storage.getQuotationNotes(Number(req.params.id));
+    res.json(notes);
+  });
+
+  app.post("/api/quotations/:id/notes", async (req, res) => {
+    try {
+      const { content, author } = req.body;
+      if (!content?.trim()) return res.status(400).json({ message: "Conteúdo obrigatório." });
+      const note = await storage.createQuotationNote({
+        quotationId: Number(req.params.id),
+        content: content.trim(),
+        author: author || "Sistema",
+      });
+      res.status(201).json(note);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.delete("/api/quotation-notes/:id", async (req, res) => {
+    await storage.deleteQuotationNote(Number(req.params.id));
+    res.status(204).end();
+  });
+
   // Export Orders
   app.get("/api/orders", async (req, res) => {
     const { page, limit, search, country, status, month } = req.query as Record<string, string>;

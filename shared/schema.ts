@@ -88,6 +88,14 @@ export const quotationSendLog = pgTable("quotation_send_log", {
   sentAt: timestamp("sent_at").defaultNow(),
 });
 
+export const quotationNotes = pgTable("quotation_notes", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  quotationId: integer("quotation_id").notNull(),
+  content: text("content").notNull(),
+  author: text("author").notNull().default("Sistema"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const exportOrders = pgTable("export_orders", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   quotationId: integer("quotation_id"),
@@ -249,6 +257,9 @@ export type Product = typeof products.$inferSelect;
 export type InsertQuotation = z.infer<typeof insertQuotationSchema>;
 export type Quotation = typeof quotations.$inferSelect;
 export type QuotationSendLogEntry = typeof quotationSendLog.$inferSelect;
+export const insertQuotationNoteSchema = createInsertSchema(quotationNotes).omit({ id: true, createdAt: true });
+export type InsertQuotationNote = z.infer<typeof insertQuotationNoteSchema>;
+export type QuotationNote = typeof quotationNotes.$inferSelect;
 export type InsertExportOrder = z.infer<typeof insertExportOrderSchema>;
 export type ExportOrder = typeof exportOrders.$inferSelect;
 
