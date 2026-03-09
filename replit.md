@@ -9,7 +9,7 @@ Sistema de Gestão de Exportação (ERP Logístico) para controle de exportaçã
 - **Database**: PostgreSQL with Drizzle ORM
 - **Routing**: Wouter
 - **State**: TanStack React Query
-- **External APIs**: ExchangeRate-API (open.er-api.com) for currency quotes, Frankfurter (ECB) for historical rates
+- **External APIs**: ExchangeRate-API (open.er-api.com) for currency quotes, Frankfurter (ECB) for historical rates (used in /api/historical-rate)
 
 ## Project Structure
 ```

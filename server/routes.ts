@@ -606,6 +606,34 @@ Seja preciso com números, use os dados fornecidos e seja direto nas recomendaç
     }
   });
 
+  // Historical exchange rate for a given date (USD → BRL)
+  app.get("/api/historical-rate", async (req, res) => {
+    const { date, currency = "BRL" } = req.query as Record<string, string>;
+    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return res.status(400).json({ message: "Parâmetro 'date' obrigatório no formato YYYY-MM-DD" });
+    }
+    try {
+      let response = await fetch(`https://api.frankfurter.app/${date}?from=USD&to=${currency}`);
+      let isFallback = false;
+      if (!response.ok) {
+        response = await fetch(`https://api.frankfurter.app/latest?from=USD&to=${currency}`);
+        isFallback = true;
+      }
+      if (!response.ok) throw new Error("Frankfurter API error");
+      const data: any = await response.json();
+      return res.json({
+        requestedDate: date,
+        resolvedDate: data.date,
+        rate: data.rates?.[currency] ?? null,
+        currency,
+        isFallback,
+      });
+    } catch (err: any) {
+      console.error("Error fetching historical rate:", err.message);
+      res.status(500).json({ message: "Falha ao buscar câmbio histórico" });
+    }
+  });
+
   // Shipment Tracking
   app.get("/api/tracking/:orderId", async (req, res) => {
     const orderId = Number(req.params.orderId);
