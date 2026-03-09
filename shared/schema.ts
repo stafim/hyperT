@@ -5,6 +5,7 @@ import { z } from "zod";
 
 export const userRoleEnum = pgEnum("user_role", ["admin", "operador", "visualizador"]);
 export const userStatusEnum = pgEnum("user_status", ["ativo", "inativo"]);
+export const productUnidadeEnum = pgEnum("product_unidade", ["caixa", "resma"]);
 
 export const modalEnum = pgEnum("modal_type", ["rodoviario", "maritimo"]);
 export const parametrizacaoEnum = pgEnum("parametrizacao_type", ["verde", "amarelo", "vermelho"]);
@@ -56,6 +57,7 @@ export const products = pgTable("products", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   type: text("type").notNull(),
   grammage: text("grammage").notNull(),
+  unidade: productUnidadeEnum("unidade").notNull().default("caixa"),
   standardPrice: numeric("standard_price", { precision: 10, scale: 2 }).notNull(),
   supplierId: integer("supplier_id"),
 });

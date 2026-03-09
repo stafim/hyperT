@@ -46,7 +46,7 @@ shared/
 - **suppliers**: name, cnpj, contact, phone, email, city, state
 - **clients**: name, country, creditLimit, paymentTerms, email, phone, responsavel, registroNacional (CUIT/RUC/RUT), address, city, state, zipCode, notes
 - **client_documents**: clientId (FK), nome, tipo (contrato/licença/certificado/procuração/registro/outro), numero, emissao (date), validade (date), observacoes, createdAt
-- **products**: type, grammage, standardPrice, supplierId (FK to suppliers)
+- **products**: type, grammage, unidade (caixa|resma), standardPrice, supplierId (FK to suppliers)
 - **quotations**: clientId, productId, supplierId, unitPrice, quantity, total, paymentTerms, validityDate, notes, status (rascunho/enviada/aceita/recusada/convertida)
 - **quotation_send_log**: quotationId, method (email/whatsapp), userName, recipientInfo, sentAt
 - **export_orders**: quotationId (FK), invoice, factory, nfe, bookingCrt, dueNumber, parametrizacao, modal, vessel, dates, financial fields, supplierId (FK to suppliers)
