@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, Package, FileText, CircleDollarSign, Factory, ClipboardList, FileCheck, CalendarClock, TrendingUp, UserCog, Sparkles, Globe, FolderLock, ShieldCheck, AlertTriangle, BrainCircuit, SlidersHorizontal } from "lucide-react";
+import { LayoutDashboard, Users, Package, FileText, CircleDollarSign, Factory, ClipboardList, FileCheck, CalendarClock, TrendingUp, UserCog, Globe, FolderLock, ShieldCheck, AlertTriangle, BrainCircuit, SlidersHorizontal } from "lucide-react";
 import logoPath from "@assets/Captura_de_tela_2026-02-27_111909_1772203458683.png";
 import { useLocation, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -18,7 +18,6 @@ import {
 
 const mainItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Análise IA", url: "/analise-ia", icon: Sparkles },
   { title: "Consulta Inteligente", url: "/query-ai", icon: BrainCircuit },
   { title: "Exposicao Cambial", url: "/exposicao-cambial", icon: TrendingUp },
   { title: "Relatórios", url: "/reports", icon: ClipboardList },
