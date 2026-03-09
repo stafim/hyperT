@@ -774,6 +774,20 @@ Seja preciso com números, use os dados fornecidos e seja direto nas recomendaç
 
   // ─── Documentação Cambial ───────────────────────────────────────────────────
 
+  app.get("/api/documentos/summary", async (_req, res) => {
+    try {
+      const rows = await storage.getDocumentosSummary();
+      const map: Record<number, Record<string, string>> = {};
+      for (const r of rows) {
+        if (!map[r.orderId]) map[r.orderId] = {};
+        map[r.orderId][r.tipo] = r.status;
+      }
+      res.json(map);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   app.get("/api/documentos", async (req, res) => {
     try {
       const orderId = Number(req.query.orderId);

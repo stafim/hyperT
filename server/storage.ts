@@ -74,6 +74,7 @@ export interface IStorage {
   getShipmentTracking(orderId: number): Promise<ShipmentTracking | undefined>;
   upsertShipmentTracking(data: InsertShipmentTracking): Promise<ShipmentTracking>;
 
+  getDocumentosSummary(): Promise<{ orderId: number; tipo: string; status: string }[]>;
   getDocumentosByOrder(orderId: number, includeArchived?: boolean): Promise<Documento[]>;
   getDocumento(id: number): Promise<Documento | undefined>;
   createDocumento(data: InsertDocumento): Promise<Documento>;
@@ -673,6 +674,14 @@ export class DatabaseStorage implements IStorage {
     }
     const rows = await db.insert(shipmentTracking).values(data).returning();
     return rows[0];
+  }
+
+  async getDocumentosSummary(): Promise<{ orderId: number; tipo: string; status: string }[]> {
+    const rows = await db
+      .select({ orderId: documentos.orderId, tipo: documentos.tipo, status: documentos.status })
+      .from(documentos)
+      .where(eq(documentos.isArquivado, false));
+    return rows;
   }
 
   async getDocumentosByOrder(orderId: number, includeArchived = false): Promise<Documento[]> {

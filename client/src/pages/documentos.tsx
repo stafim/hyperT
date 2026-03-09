@@ -7,13 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
-  FileText, Upload, Download, Eye, ChevronRight, Search, Clock,
+  FileText, Upload, Download, Eye, Search, Clock,
   CheckCircle2, XCircle, AlertCircle, Loader2, FolderOpen, Archive,
-  ShieldCheck, RotateCcw, FileImage, File,
+  ShieldCheck, ChevronRight, FileImage, File, Minus,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -54,14 +54,21 @@ interface Order {
   client?: { name: string };
   product?: { type: string };
   embarqueDate?: string | null;
-  vesselStatus?: string | null;
   parametrizacao?: string;
 }
+
+type DocSummary = Record<number, Record<string, string>>;
 
 const TIPO_LABELS: Record<DocTipo, string> = {
   commercial_invoice: "Commercial Invoice",
   packing_list: "Packing List",
-  bill_of_lading: "Bill of Lading (B/L)",
+  bill_of_lading: "Bill of Lading",
+};
+
+const TIPO_SHORT: Record<DocTipo, string> = {
+  commercial_invoice: "CI",
+  packing_list: "PL",
+  bill_of_lading: "B/L",
 };
 
 const TIPO_ICONS: Record<DocTipo, React.ReactNode> = {
@@ -71,20 +78,35 @@ const TIPO_ICONS: Record<DocTipo, React.ReactNode> = {
 };
 
 const STATUS_CONFIG: Record<DocStatus, { label: string; color: string; icon: React.ReactNode }> = {
-  pendente: { label: "Pendente", color: "bg-yellow-100 text-yellow-800 border-yellow-200", icon: <Clock className="h-3 w-3" /> },
-  em_analise: { label: "Em Análise", color: "bg-blue-100 text-blue-800 border-blue-200", icon: <Loader2 className="h-3 w-3" /> },
-  aprovado: { label: "Aprovado", color: "bg-green-100 text-green-800 border-green-200", icon: <CheckCircle2 className="h-3 w-3" /> },
-  rejeitado: { label: "Rejeitado", color: "bg-red-100 text-red-800 border-red-200", icon: <XCircle className="h-3 w-3" /> },
+  pendente: { label: "Pendente", color: "bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-300", icon: <Clock className="h-3 w-3" /> },
+  em_analise: { label: "Em Análise", color: "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300", icon: <Loader2 className="h-3 w-3" /> },
+  aprovado: { label: "Aprovado", color: "bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-300", icon: <CheckCircle2 className="h-3 w-3" /> },
+  rejeitado: { label: "Rejeitado", color: "bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-300", icon: <XCircle className="h-3 w-3" /> },
 };
+
+const TIPOS: DocTipo[] = ["commercial_invoice", "packing_list", "bill_of_lading"];
 
 function StatusBadge({ status }: { status: DocStatus }) {
   const cfg = STATUS_CONFIG[status];
   return (
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${cfg.color}`}>
-      {cfg.icon}
-      {cfg.label}
+      {cfg.icon}{cfg.label}
     </span>
   );
+}
+
+function DocStatusCell({ status }: { status: string | undefined }) {
+  if (!status) {
+    return (
+      <span className="inline-flex items-center gap-1 text-muted-foreground/40">
+        <Minus className="h-3.5 w-3.5" />
+      </span>
+    );
+  }
+  if (status === "aprovado") return <CheckCircle2 className="h-4 w-4 text-green-500" />;
+  if (status === "rejeitado") return <XCircle className="h-4 w-4 text-red-500" />;
+  if (status === "em_analise") return <Loader2 className="h-4 w-4 text-blue-500" />;
+  return <Clock className="h-4 w-4 text-yellow-500" />;
 }
 
 function formatBytes(bytes: number): string {
@@ -172,6 +194,12 @@ function DocCard({
         <span className="text-primary">{TIPO_ICONS[tipo]}</span>
         <span className="font-semibold text-sm">{TIPO_LABELS[tipo]}</span>
         {active && <StatusBadge status={active.status} />}
+        {!active && (
+          <span className="flex items-center gap-1 text-xs text-muted-foreground ml-auto">
+            <AlertCircle className="h-3.5 w-3.5 text-yellow-500" />
+            Não anexado
+          </span>
+        )}
         {active && active.versao > 1 && (
           <span className="ml-auto text-xs text-muted-foreground">v{active.versao}</span>
         )}
@@ -188,7 +216,7 @@ function DocCard({
                   {formatBytes(active.tamanho)} · {format(new Date(active.createdAt), "dd/MM/yyyy HH:mm", { locale: ptBR })} · por {active.uploadedBy}
                 </p>
                 {active.status === "rejeitado" && active.motivoRejeicao && (
-                  <p className="text-[11px] text-red-600 mt-1 bg-red-50 rounded px-2 py-1">
+                  <p className="text-[11px] text-red-600 mt-1 bg-red-50 dark:bg-red-950/30 rounded px-2 py-1">
                     Motivo: {active.motivoRejeicao}
                   </p>
                 )}
@@ -197,7 +225,7 @@ function DocCard({
 
             <div className="flex flex-wrap gap-1.5">
               {active.mimeType === "application/pdf" && (
-                <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => setShowPreview(true)}>
+                <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => setShowPreview(true)} data-testid={`button-preview-${tipo}`}>
                   <Eye className="h-3 w-3" /> Visualizar
                 </Button>
               )}
@@ -275,12 +303,7 @@ function DocCard({
             <Separator />
             <p className="text-[11px] text-muted-foreground">Substituir documento:</p>
           </>
-        ) : (
-          <div className="flex items-center gap-2 text-muted-foreground mb-2">
-            <AlertCircle className="h-4 w-4 text-yellow-500" />
-            <span className="text-xs">Nenhum documento enviado</span>
-          </div>
-        )}
+        ) : null}
 
         <DropZone tipo={tipo} onUpload={(file) => onUpload(tipo, file)} isUploading={isUploading} />
       </div>
@@ -323,11 +346,7 @@ function DocCard({
               </DialogTitle>
             </DialogHeader>
             <div className="flex-1 min-h-0 rounded-lg overflow-hidden border">
-              <iframe
-                src={fileUrl}
-                className="w-full h-full"
-                title={active.nomeOriginal}
-              />
+              <iframe src={fileUrl} className="w-full h-full" title={active.nomeOriginal} />
             </div>
           </DialogContent>
         </Dialog>
@@ -336,21 +355,23 @@ function DocCard({
   );
 }
 
-export default function Documentos() {
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [search, setSearch] = useState("");
+function OrderDocsDialog({
+  order,
+  open,
+  onOpenChange,
+}: {
+  order: Order;
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+}) {
   const [uploadingTipo, setUploadingTipo] = useState<DocTipo | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: orders = [], isLoading: ordersLoading } = useQuery<Order[]>({
-    queryKey: ["/api/orders"],
-  });
-
   const { data: docs = [], isLoading: docsLoading } = useQuery<Documento[]>({
-    queryKey: ["/api/documentos", selectedOrder?.id],
-    queryFn: () => apiRequest("GET", `/api/documentos?orderId=${selectedOrder!.id}&includeArchived=true`).then(r => r.json()),
-    enabled: !!selectedOrder,
+    queryKey: ["/api/documentos", order.id],
+    queryFn: () => apiRequest("GET", `/api/documentos?orderId=${order.id}&includeArchived=true`).then(r => r.json()),
+    enabled: open,
   });
 
   const activeDocs = docs.filter(d => !d.isArquivado);
@@ -360,30 +381,30 @@ export default function Documentos() {
     mutationFn: ({ id, status, motivoRejeicao }: { id: number; status: string; motivoRejeicao?: string }) =>
       apiRequest("PATCH", `/api/documentos/${id}/status`, { status, motivoRejeicao, userName: "Gestor", userType: "manager" }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/documentos", selectedOrder?.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/documentos", order.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/documentos/summary"] });
       toast({ title: "Status atualizado" });
     },
     onError: (e: any) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
   });
 
   const handleUpload = async (tipo: DocTipo, file: File) => {
-    if (!selectedOrder) return;
     setUploadingTipo(tipo);
     try {
       const formData = new FormData();
       formData.append("arquivo", file);
-      formData.append("orderId", String(selectedOrder.id));
+      formData.append("orderId", String(order.id));
       formData.append("tipo", tipo);
       formData.append("uploadedBy", "Gestor");
       formData.append("uploadedByType", "manager");
-
       const res = await fetch("/api/documentos/upload", { method: "POST", body: formData });
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.message || "Erro ao enviar");
       }
-      await queryClient.invalidateQueries({ queryKey: ["/api/documentos", selectedOrder.id] });
-      toast({ title: "Documento enviado com sucesso", description: `${TIPO_LABELS[tipo]} — ${file.name}` });
+      await queryClient.invalidateQueries({ queryKey: ["/api/documentos", order.id] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/documentos/summary"] });
+      toast({ title: "Documento enviado", description: `${TIPO_LABELS[tipo]} — ${file.name}` });
     } catch (e: any) {
       toast({ title: "Erro no upload", description: e.message, variant: "destructive" });
     } finally {
@@ -391,178 +412,250 @@ export default function Documentos() {
     }
   };
 
-  const handleStatusChange = (doc: Documento, status: DocStatus, motivo?: string) => {
-    statusMutation.mutate({ id: doc.id, status, motivoRejeicao: motivo });
-  };
+  const paramColor = order.parametrizacao === "verde"
+    ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
+    : order.parametrizacao === "amarelo"
+    ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300"
+    : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300";
 
-  const filtered = orders.filter(o =>
-    o.invoice?.toLowerCase().includes(search.toLowerCase()) ||
-    o.client?.name?.toLowerCase().includes(search.toLowerCase())
-  );
-
-  const getOrderDocStatus = (orderId: number) => {
-    const orderDocs = docs;
-    const tiposComDoc = new Set(activeDocs.filter(d => d.orderId === orderId).map(d => d.tipo));
-    return tiposComDoc.size;
-  };
-
-  const TIPOS: DocTipo[] = ["commercial_invoice", "packing_list", "bill_of_lading"];
+  const attachedCount = activeDocs.length;
 
   return (
-    <div className="flex h-full">
-      <div className="w-80 shrink-0 border-r flex flex-col">
-        <div className="p-4 border-b">
-          <h1 className="text-lg font-bold flex items-center gap-2">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-base">
             <FolderOpen className="h-5 w-5 text-primary" />
-            Repositório Cambial
-          </h1>
-          <p className="text-xs text-muted-foreground mt-0.5">Documentação de exportação</p>
-        </div>
-        <div className="p-3 border-b">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-            <Input
-              placeholder="Buscar processo..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="pl-8 h-8 text-sm"
-            />
-          </div>
-        </div>
-        <div className="flex-1 overflow-y-auto">
-          {ordersLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-            </div>
-          ) : filtered.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">Nenhum processo encontrado</p>
-          ) : filtered.map(order => {
-            const isSelected = selectedOrder?.id === order.id;
-            const paramColor = order.parametrizacao === "verde" ? "bg-green-500" : order.parametrizacao === "amarelo" ? "bg-yellow-500" : "bg-red-500";
-            return (
-              <button
-                key={order.id}
-                onClick={() => setSelectedOrder(order)}
-                className={`w-full text-left px-4 py-3 border-b hover:bg-muted/40 transition-colors flex items-start gap-3 ${isSelected ? "bg-primary/5 border-l-2 border-l-primary" : ""}`}
-              >
-                <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${paramColor}`} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold">{order.invoice}</p>
-                  <p className="text-[11px] text-muted-foreground truncate">{order.client?.name}</p>
-                  {order.embarqueDate && (
-                    <p className="text-[10px] text-muted-foreground">
-                      {format(new Date(order.embarqueDate), "dd/MM/yyyy", { locale: ptBR })}
-                    </p>
-                  )}
-                </div>
-                <ChevronRight className={`h-4 w-4 text-muted-foreground shrink-0 mt-0.5 ${isSelected ? "text-primary" : ""}`} />
-              </button>
-            );
-          })}
-        </div>
-      </div>
+            {order.invoice}
+            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${paramColor}`}>
+              {order.parametrizacao}
+            </span>
+            <span className="ml-auto text-sm font-normal text-muted-foreground">
+              {attachedCount}/3 documentos anexados
+            </span>
+          </DialogTitle>
+          <p className="text-sm text-muted-foreground">
+            {order.client?.name}
+            {order.product?.type && ` · ${order.product.type}`}
+            {order.embarqueDate && ` · Embarque: ${format(new Date(order.embarqueDate), "dd/MM/yyyy", { locale: ptBR })}`}
+          </p>
+        </DialogHeader>
 
-      <div className="flex-1 overflow-y-auto">
-        {!selectedOrder ? (
-          <div className="flex flex-col items-center justify-center h-full text-center p-8">
-            <FolderOpen className="h-16 w-16 text-muted-foreground/30 mb-4" />
-            <h2 className="text-lg font-semibold text-muted-foreground">Selecione um processo</h2>
-            <p className="text-sm text-muted-foreground/70 mt-1">
-              Escolha um processo na lista à esquerda para gerenciar os documentos cambiais.
-            </p>
+        {docsLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
+            {[1, 2, 3].map(i => <Skeleton key={i} className="h-48 w-full rounded-xl" />)}
           </div>
         ) : (
-          <div className="p-6 space-y-6">
-            <div className="flex items-start justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-xl font-bold">{selectedOrder.invoice}</h2>
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                    selectedOrder.parametrizacao === "verde" ? "bg-green-100 text-green-700" :
-                    selectedOrder.parametrizacao === "amarelo" ? "bg-yellow-100 text-yellow-700" :
-                    "bg-red-100 text-red-700"
-                  }`}>
-                    {selectedOrder.parametrizacao?.charAt(0).toUpperCase() + selectedOrder.parametrizacao?.slice(1)}
-                  </span>
-                </div>
-                <p className="text-sm text-muted-foreground mt-0.5">
-                  {selectedOrder.client?.name} · {selectedOrder.product?.type}
-                  {selectedOrder.embarqueDate && ` · Embarque: ${format(new Date(selectedOrder.embarqueDate), "dd/MM/yyyy", { locale: ptBR })}`}
-                </p>
-              </div>
-              <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                <span className="flex items-center gap-1.5">
-                  <div className="flex gap-0.5">
-                    {TIPOS.map(tipo => {
-                      const has = activeDocs.some(d => d.tipo === tipo);
-                      const doc = activeDocs.find(d => d.tipo === tipo);
-                      const color = !has ? "bg-gray-200" : doc?.status === "aprovado" ? "bg-green-500" : doc?.status === "rejeitado" ? "bg-red-500" : doc?.status === "em_analise" ? "bg-blue-500" : "bg-yellow-500";
-                      return <div key={tipo} className={`w-3 h-3 rounded-sm ${color}`} title={TIPO_LABELS[tipo]} />;
-                    })}
-                  </div>
-                  {activeDocs.length}/3 documentos
-                </span>
-              </div>
-            </div>
-
-            {docsLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                {TIPOS.map(tipo => (
-                  <DocCard
-                    key={tipo}
-                    tipo={tipo}
-                    docs={activeDocs}
-                    archivedDocs={archivedDocs}
-                    orderId={selectedOrder.id}
-                    onUpload={handleUpload}
-                    onStatusChange={handleStatusChange}
-                    uploadingTipo={uploadingTipo}
-                  />
-                ))}
-              </div>
-            )}
-
-            {activeDocs.length > 0 && (
-              <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
-                <div className="flex items-center gap-2 px-4 py-3 bg-muted/30 border-b">
-                  <ShieldCheck className="h-4 w-4 text-primary" />
-                  <span className="font-semibold text-sm">Resumo dos Documentos</span>
-                </div>
-                <Table>
-                  <TableHeader>
-                    <TableRow className="hover:bg-transparent">
-                      <TableHead className="text-xs">Tipo</TableHead>
-                      <TableHead className="text-xs">Arquivo</TableHead>
-                      <TableHead className="text-xs">Versão</TableHead>
-                      <TableHead className="text-xs">Status</TableHead>
-                      <TableHead className="text-xs">Enviado por</TableHead>
-                      <TableHead className="text-xs">Data</TableHead>
-                      <TableHead className="text-xs">Tamanho</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {activeDocs.map(doc => (
-                      <TableRow key={doc.id} className="text-xs">
-                        <TableCell className="font-medium">{TIPO_LABELS[doc.tipo]}</TableCell>
-                        <TableCell className="max-w-[160px] truncate">{doc.nomeOriginal}</TableCell>
-                        <TableCell>v{doc.versao}</TableCell>
-                        <TableCell><StatusBadge status={doc.status} /></TableCell>
-                        <TableCell>{doc.uploadedBy}</TableCell>
-                        <TableCell>{format(new Date(doc.createdAt), "dd/MM/yyyy HH:mm", { locale: ptBR })}</TableCell>
-                        <TableCell>{formatBytes(doc.tamanho)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
+            {TIPOS.map(tipo => (
+              <DocCard
+                key={tipo}
+                tipo={tipo}
+                docs={activeDocs}
+                archivedDocs={archivedDocs}
+                orderId={order.id}
+                onUpload={handleUpload}
+                onStatusChange={(doc, status, motivo) => statusMutation.mutate({ id: doc.id, status, motivoRejeicao: motivo })}
+                uploadingTipo={uploadingTipo}
+              />
+            ))}
           </div>
         )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export default function Documentos() {
+  const [search, setSearch] = useState("");
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [filterStatus, setFilterStatus] = useState<"all" | "completo" | "parcial" | "vazio">("all");
+
+  const { data: orders = [], isLoading: ordersLoading } = useQuery<Order[]>({
+    queryKey: ["/api/orders"],
+  });
+
+  const { data: summary = {} } = useQuery<DocSummary>({
+    queryKey: ["/api/documentos/summary"],
+    queryFn: () => fetch("/api/documentos/summary").then(r => r.json()),
+  });
+
+  const filtered = orders.filter(o => {
+    const matchSearch = !search
+      || o.invoice?.toLowerCase().includes(search.toLowerCase())
+      || o.client?.name?.toLowerCase().includes(search.toLowerCase());
+
+    const orderDocs = summary[o.id] ?? {};
+    const count = Object.keys(orderDocs).length;
+    const matchStatus =
+      filterStatus === "all" ? true :
+      filterStatus === "completo" ? count === 3 :
+      filterStatus === "parcial" ? count > 0 && count < 3 :
+      count === 0;
+
+    return matchSearch && matchStatus;
+  });
+
+  const totalCompletos = orders.filter(o => Object.keys(summary[o.id] ?? {}).length === 3).length;
+  const totalParciais = orders.filter(o => { const c = Object.keys(summary[o.id] ?? {}).length; return c > 0 && c < 3; }).length;
+  const totalVazios = orders.filter(o => Object.keys(summary[o.id] ?? {}).length === 0).length;
+
+  return (
+    <div className="p-6 space-y-4">
+      <div>
+        <h1 className="text-2xl font-bold flex items-center gap-2" data-testid="text-documentos-title">
+          <FolderOpen className="h-6 w-6 text-primary" />
+          Documentação Cambial
+        </h1>
+        <p className="text-sm text-muted-foreground mt-0.5">
+          Repositório de documentos de exportação — Commercial Invoice, Packing List e Bill of Lading
+        </p>
       </div>
+
+      <div className="grid grid-cols-3 gap-3 max-w-lg">
+        <button
+          onClick={() => setFilterStatus(filterStatus === "completo" ? "all" : "completo")}
+          className={`rounded-lg border p-3 text-left transition-colors ${filterStatus === "completo" ? "border-green-500 bg-green-50 dark:bg-green-950/30" : "hover:bg-muted/40"}`}
+          data-testid="filter-completo"
+        >
+          <p className="text-2xl font-bold text-green-600">{totalCompletos}</p>
+          <p className="text-xs text-muted-foreground">Completos</p>
+        </button>
+        <button
+          onClick={() => setFilterStatus(filterStatus === "parcial" ? "all" : "parcial")}
+          className={`rounded-lg border p-3 text-left transition-colors ${filterStatus === "parcial" ? "border-yellow-500 bg-yellow-50 dark:bg-yellow-950/30" : "hover:bg-muted/40"}`}
+          data-testid="filter-parcial"
+        >
+          <p className="text-2xl font-bold text-yellow-600">{totalParciais}</p>
+          <p className="text-xs text-muted-foreground">Parciais</p>
+        </button>
+        <button
+          onClick={() => setFilterStatus(filterStatus === "vazio" ? "all" : "vazio")}
+          className={`rounded-lg border p-3 text-left transition-colors ${filterStatus === "vazio" ? "border-red-400 bg-red-50 dark:bg-red-950/30" : "hover:bg-muted/40"}`}
+          data-testid="filter-vazio"
+        >
+          <p className="text-2xl font-bold text-muted-foreground">{totalVazios}</p>
+          <p className="text-xs text-muted-foreground">Sem docs</p>
+        </button>
+      </div>
+
+      <div className="relative max-w-md">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Buscar por processo ou cliente..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="pl-9"
+          data-testid="input-search-documentos"
+        />
+      </div>
+
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Processo</TableHead>
+              <TableHead>Cliente</TableHead>
+              <TableHead>Produto</TableHead>
+              <TableHead>Embarque</TableHead>
+              <TableHead className="text-center">CI</TableHead>
+              <TableHead className="text-center">PL</TableHead>
+              <TableHead className="text-center">B/L</TableHead>
+              <TableHead className="text-center">Docs</TableHead>
+              <TableHead className="text-right">Ações</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {ordersLoading ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <TableRow key={i}>
+                  {Array.from({ length: 9 }).map((_, j) => (
+                    <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : filtered.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={9} className="text-center py-12 text-muted-foreground">
+                  <FolderOpen className="h-10 w-10 mx-auto mb-2 opacity-30" />
+                  Nenhum processo encontrado
+                </TableCell>
+              </TableRow>
+            ) : filtered.map(order => {
+              const orderDocs = summary[order.id] ?? {};
+              const count = Object.keys(orderDocs).length;
+              const isComplete = count === 3;
+              const paramDot = order.parametrizacao === "verde"
+                ? "bg-green-500"
+                : order.parametrizacao === "amarelo"
+                ? "bg-yellow-500"
+                : "bg-red-500";
+
+              return (
+                <TableRow key={order.id} data-testid={`row-order-${order.id}`} className="hover:bg-muted/30">
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full shrink-0 ${paramDot}`} />
+                      <span className="font-mono text-sm font-semibold">{order.invoice}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-sm">{order.client?.name ?? "—"}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{order.product?.type ?? "—"}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {order.embarqueDate
+                      ? format(new Date(order.embarqueDate), "dd/MM/yyyy", { locale: ptBR })
+                      : "—"}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <div className="flex justify-center">
+                      <DocStatusCell status={orderDocs["commercial_invoice"]} />
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <div className="flex justify-center">
+                      <DocStatusCell status={orderDocs["packing_list"]} />
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <div className="flex justify-center">
+                      <DocStatusCell status={orderDocs["bill_of_lading"]} />
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <Badge
+                      variant={isComplete ? "default" : count > 0 ? "secondary" : "outline"}
+                      className={`text-xs ${isComplete ? "bg-green-500 hover:bg-green-500" : ""}`}
+                      data-testid={`badge-docs-${order.id}`}
+                    >
+                      {count}/3
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1 h-7 text-xs"
+                      onClick={() => setSelectedOrder(order)}
+                      data-testid={`button-view-docs-${order.id}`}
+                    >
+                      <Eye className="h-3 w-3" />
+                      Ver documentos
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
+
+      {selectedOrder && (
+        <OrderDocsDialog
+          order={selectedOrder}
+          open={!!selectedOrder}
+          onOpenChange={(v) => { if (!v) setSelectedOrder(null); }}
+        />
+      )}
     </div>
   );
 }

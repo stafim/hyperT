@@ -5,12 +5,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { DollarSign, Package, FileText, TrendingUp, Globe, Truck, Ship, ShieldCheck, BarChart3, CalendarDays, Landmark, Settings2, Layers, Navigation } from "lucide-react";
+import { DollarSign, Package, FileText, TrendingUp, Globe, Truck, Ship, ShieldCheck, BarChart3, CalendarDays, Landmark, Settings2, Layers, Navigation, ShoppingCart, Target, Percent, Wallet } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line, Legend, AreaChart, Area
 } from "recharts";
-import type { ExportOrderWithDetails } from "@shared/schema";
+import type { ExportOrderWithDetails, QuotationWithDetails } from "@shared/schema";
 
 type PeriodPreset = "today" | "week" | "month" | "quarter" | "semester" | "year" | "all" | "custom";
 
@@ -128,13 +128,14 @@ function StatCard({
   );
 }
 
-type SectionFilter = "all" | "financeiro" | "operacional" | "diversos";
+type SectionFilter = "all" | "financeiro" | "operacional" | "diversos" | "cotacoes-vendas";
 
 const SECTION_LABELS: { value: SectionFilter; label: string }[] = [
   { value: "all", label: "Todos" },
   { value: "financeiro", label: "Financeiro" },
   { value: "operacional", label: "Operacional" },
   { value: "diversos", label: "Diversos" },
+  { value: "cotacoes-vendas", label: "Cotações/Vendas" },
 ];
 
 export default function Dashboard() {
@@ -160,6 +161,10 @@ export default function Dashboard() {
 
   const { data: orders, isLoading } = useQuery<ExportOrderWithDetails[]>({
     queryKey: ["/api/orders"],
+  });
+
+  const { data: quotations = [], isLoading: quotationsLoading } = useQuery<QuotationWithDetails[]>({
+    queryKey: ["/api/quotations"],
   });
 
   const { data: stats, isLoading: statsLoading } = useQuery<{
@@ -188,6 +193,73 @@ export default function Dashboard() {
     queryKey: ["/api/dashboard/stats", queryParams],
     queryFn: () => fetch(`/api/dashboard/stats${queryParams}`).then((r) => r.json()),
   });
+
+  const quotationsStats = useMemo(() => {
+    if (!quotations.length) return null;
+
+    const STATUSES = ["rascunho", "enviada", "aceita", "recusada", "convertida"] as const;
+    const STATUS_LABELS_PT: Record<string, string> = {
+      rascunho: "Rascunho", enviada: "Enviada", aceita: "Aceita", recusada: "Recusada", convertida: "Convertida",
+    };
+
+    const statusCounts = STATUSES.map(s => ({
+      status: STATUS_LABELS_PT[s],
+      count: quotations.filter(q => q.status === s).length,
+      valor: quotations.filter(q => q.status === s).reduce((acc, q) => acc + Number(q.total ?? 0), 0),
+    }));
+
+    const pipeline = quotations.filter(q => q.status === "rascunho" || q.status === "enviada");
+    const pipelineValue = pipeline.reduce((acc, q) => acc + Number(q.total ?? 0), 0);
+    const pipelineCount = pipeline.length;
+
+    const converted = quotations.filter(q => q.status === "convertida").length;
+    const decided = quotations.filter(q => ["aceita", "recusada", "convertida"].includes(q.status)).length;
+    const conversionRate = decided > 0 ? Math.round((converted / decided) * 100) : 0;
+
+    const clientMap: Record<string, number> = {};
+    quotations.forEach(q => {
+      const name = q.client?.name ?? "Desconhecido";
+      clientMap[name] = (clientMap[name] ?? 0) + Number(q.total ?? 0);
+    });
+    const topClients = Object.entries(clientMap)
+      .map(([client, valor]) => ({ client, valor }))
+      .sort((a, b) => b.valor - a.valor)
+      .slice(0, 7);
+
+    const productMap: Record<string, { count: number; valor: number }> = {};
+    quotations.forEach(q => {
+      const name = q.product?.type ?? "Desconhecido";
+      if (!productMap[name]) productMap[name] = { count: 0, valor: 0 };
+      productMap[name].count++;
+      productMap[name].valor += Number(q.total ?? 0);
+    });
+    const byProduct = Object.entries(productMap)
+      .map(([product, d]) => ({ product, count: d.count, valor: d.valor }))
+      .sort((a, b) => b.valor - a.valor);
+
+    const monthMap: Record<string, { count: number; valor: number }> = {};
+    quotations.forEach(q => {
+      const d = new Date(q.createdAt);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      if (!monthMap[key]) monthMap[key] = { count: 0, valor: 0 };
+      monthMap[key].count++;
+      monthMap[key].valor += Number(q.total ?? 0);
+    });
+    const byMonth = Object.entries(monthMap)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-12)
+      .map(([month, d]) => ({
+        month: new Date(month + "-01").toLocaleDateString("pt-BR", { month: "short", year: "2-digit" }),
+        count: d.count,
+        valor: d.valor,
+      }));
+
+    const recentActive = quotations
+      .filter(q => q.status === "rascunho" || q.status === "enviada")
+      .slice(0, 5);
+
+    return { statusCounts, pipelineValue, pipelineCount, conversionRate, converted, total: quotations.length, topClients, byProduct, byMonth, recentActive };
+  }, [quotations]);
 
   if (isLoading || statsLoading) {
     return (
@@ -919,6 +991,261 @@ export default function Dashboard() {
           )}
         </CardContent>
       </Card>
+      </>}
+
+      {(selectedSection === "all" || selectedSection === "cotacoes-vendas") && <>
+      <div className="flex items-center gap-2 pt-4" data-testid="section-cotacoes-vendas">
+        <ShoppingCart className="h-5 w-5 text-primary" />
+        <h2 className="text-lg font-semibold">Cotações / Vendas</h2>
+        <div className="flex-1 h-px bg-border" />
+      </div>
+
+      {quotationsLoading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map(i => <Card key={i}><CardHeader className="pb-2"><Skeleton className="h-4 w-24" /></CardHeader><CardContent><Skeleton className="h-8 w-32" /></CardContent></Card>)}
+        </div>
+      ) : quotationsStats ? (
+        <>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card data-testid="card-total-cotacoes">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                  <FileText className="h-3.5 w-3.5" /> Total de Cotações
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold">{quotationsStats.total}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{quotationsStats.converted} convertidas em ordens</p>
+              </CardContent>
+            </Card>
+            <Card data-testid="card-pipeline-ativo">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                  <Target className="h-3.5 w-3.5" /> Pipeline Ativo
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold">{quotationsStats.pipelineCount}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">rascunhos e enviadas</p>
+              </CardContent>
+            </Card>
+            <Card data-testid="card-taxa-conversao">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                  <Percent className="h-3.5 w-3.5" /> Taxa de Conversão
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold">{quotationsStats.conversionRate}%</p>
+                <p className="text-xs text-muted-foreground mt-0.5">cotações decididas</p>
+              </CardContent>
+            </Card>
+            <Card data-testid="card-valor-pipeline">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                  <Wallet className="h-3.5 w-3.5" /> Valor em Pipeline
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold">
+                  {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(quotationsStats.pipelineValue)}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">em aberto</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4 text-muted-foreground" />
+                  Funil de Cotações por Status
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={240}>
+                  <BarChart data={quotationsStats.statusCounts} layout="vertical" barCategoryGap="20%">
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                    <XAxis type="number" tick={{ fontSize: 11 }} />
+                    <YAxis dataKey="status" type="category" tick={{ fontSize: 11 }} width={80} />
+                    <Tooltip
+                      formatter={(v: number) => [v, "Qtd"]}
+                      contentStyle={{ borderRadius: "6px", border: "1px solid hsl(var(--border))", backgroundColor: "hsl(var(--popover))", color: "hsl(var(--popover-foreground))" }}
+                    />
+                    <Bar dataKey="count" radius={[0, 4, 4, 0]}>
+                      {quotationsStats.statusCounts.map((entry, index) => {
+                        const colors = ["#94A3B8", "#3B82F6", "#22C55E", "#EF4444", "#1E4D7B"];
+                        return <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />;
+                      })}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                  Cotações por Mês
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {quotationsStats.byMonth.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={240}>
+                    <AreaChart data={quotationsStats.byMonth}>
+                      <defs>
+                        <linearGradient id="colorCotacoes" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#3B82F6" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 11 }} />
+                      <Tooltip
+                        contentStyle={{ borderRadius: "6px", border: "1px solid hsl(var(--border))", backgroundColor: "hsl(var(--popover))", color: "hsl(var(--popover-foreground))" }}
+                      />
+                      <Area type="monotone" dataKey="count" stroke="#3B82F6" strokeWidth={2} fill="url(#colorCotacoes)" name="Cotações" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex items-center justify-center h-[240px] text-muted-foreground text-sm">Sem dados disponíveis</div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <Globe className="h-4 w-4 text-muted-foreground" />
+                  Top Clientes por Valor Cotado
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {quotationsStats.topClients.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={240}>
+                    <BarChart data={quotationsStats.topClients} layout="vertical" barCategoryGap="20%">
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                      <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
+                      <YAxis dataKey="client" type="category" tick={{ fontSize: 10 }} width={110} />
+                      <Tooltip
+                        formatter={(v: number) => [new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(v), "Valor"]}
+                        contentStyle={{ borderRadius: "6px", border: "1px solid hsl(var(--border))", backgroundColor: "hsl(var(--popover))", color: "hsl(var(--popover-foreground))" }}
+                      />
+                      <Bar dataKey="valor" fill="#1E4D7B" radius={[0, 4, 4, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex items-center justify-center h-[240px] text-muted-foreground text-sm">Sem dados disponíveis</div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <Package className="h-4 w-4 text-muted-foreground" />
+                  Cotações por Produto
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {quotationsStats.byProduct.length > 0 ? (
+                  <div className="flex items-center gap-4">
+                    <ResponsiveContainer width="55%" height={240}>
+                      <PieChart>
+                        <Pie
+                          data={quotationsStats.byProduct}
+                          cx="50%" cy="50%"
+                          innerRadius={55}
+                          outerRadius={90}
+                          paddingAngle={4}
+                          dataKey="count"
+                          nameKey="product"
+                        >
+                          {quotationsStats.byProduct.map((_, index) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          formatter={(v: number) => [v, "Qtd"]}
+                          contentStyle={{ borderRadius: "6px", border: "1px solid hsl(var(--border))", backgroundColor: "hsl(var(--popover))", color: "hsl(var(--popover-foreground))" }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="flex flex-col gap-2 flex-1">
+                      {quotationsStats.byProduct.map((item, i) => (
+                        <div key={item.product} className="flex items-center gap-2">
+                          <div className="h-3 w-3 rounded-sm flex-shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs truncate">{item.product}</p>
+                            <p className="text-[11px] text-muted-foreground">{item.count} cotações</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center h-[240px] text-muted-foreground text-sm">Sem dados disponíveis</div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {quotationsStats.recentActive.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <Target className="h-4 w-4 text-muted-foreground" />
+                  Pipeline — Cotações Abertas
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="divide-y">
+                  {quotationsStats.recentActive.map(q => {
+                    const statusColor = q.status === "enviada"
+                      ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+                      : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300";
+                    const statusLabel = q.status === "enviada" ? "Enviada" : "Rascunho";
+                    const isExpired = q.validityDate && new Date(q.validityDate) < new Date();
+                    return (
+                      <div key={q.id} className="flex items-center gap-4 px-4 py-3 hover:bg-muted/30 transition-colors" data-testid={`row-cotacao-${q.id}`}>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-medium truncate">{q.client?.name ?? "—"}</p>
+                            <span className={`px-1.5 py-0.5 rounded text-[11px] font-medium ${statusColor}`}>{statusLabel}</span>
+                            {isExpired && <span className="px-1.5 py-0.5 rounded text-[11px] font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300">Vencida</span>}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5">{q.product?.type ?? "—"} · {q.quantity} unid.</p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-sm font-semibold">
+                            {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number(q.total ?? 0))}
+                          </p>
+                          {q.validityDate && (
+                            <p className={`text-[11px] ${isExpired ? "text-red-500" : "text-muted-foreground"}`}>
+                              Val. {new Date(q.validityDate + "T00:00:00").toLocaleDateString("pt-BR")}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </>
+      ) : (
+        <Card>
+          <CardContent className="flex items-center justify-center h-40 text-muted-foreground text-sm">
+            Nenhuma cotação cadastrada
+          </CardContent>
+        </Card>
+      )}
       </>}
     </div>
   );

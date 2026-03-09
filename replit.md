@@ -27,6 +27,7 @@ client/src/
     quotes.tsx       - MERCOSUL+Mexico currency quotes (real-time) - sidebar: "Câmbio"
     reports.tsx      - Export reports with order details and audit history
     rastreabilidade.tsx - Logistics Traceability Dashboard (maritime orders, stepper timeline, vessel tracking, docs one-click, ETA countdown)
+    documentos.tsx   - Documentação Cambial: full-width order list with CI/PL/B/L status indicators per row, KPI cards, filters, click-to-view dialog with DocCards + upload zones
   components/
     app-sidebar.tsx  - Navigation sidebar (Hypertrade branding)
     order-form.tsx   - Export order creation/edit form (with supplier selector, quotation prefill)
