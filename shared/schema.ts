@@ -299,6 +299,19 @@ export const audioProTopicsConfig = pgTable("audio_pro_topics_config", {
 
 export type AudioProTopicsConfig = typeof audioProTopicsConfig.$inferSelect;
 
+// ─── Audio PRO Custom Topics ───────────────────────────────────────────────────
+export const audioProCustomTopics = pgTable("audio_pro_custom_topics", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  titulo: text("titulo").notNull(),
+  instrucao: text("instrucao").notNull(),
+  ativo: boolean("ativo").notNull().default(true),
+  ordem: integer("ordem").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type AudioProCustomTopic = typeof audioProCustomTopics.$inferSelect;
+export const insertAudioProCustomTopicSchema = createInsertSchema(audioProCustomTopics).omit({ id: true, createdAt: true });
+export type InsertAudioProCustomTopic = z.infer<typeof insertAudioProCustomTopicSchema>;
+
 // ─── Telegram Notification Config ─────────────────────────────────────────────
 export const telegramNotificationConfig = pgTable("telegram_notification_config", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),

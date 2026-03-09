@@ -2,7 +2,7 @@ import { storage } from "./storage";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { Client, Supplier, Product, Quotation, ExportOrder } from "@shared/schema";
-import { textToSpeech } from "./replit_integrations/audio/client";
+import { textToSpeech, openai } from "./replit_integrations/audio/client";
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID;
@@ -609,19 +609,68 @@ async function buildQuotationNotesText(): Promise<string> {
   }
 }
 
+async function generateCustomTopicsText(): Promise<string[]> {
+  try {
+    const topics = await storage.getAudioProCustomTopics();
+    const active = topics.filter(t => t.ativo);
+    if (active.length === 0) return [];
+
+    const [orders, quotations, clients] = await Promise.all([
+      storage.getExportOrders(),
+      storage.getQuotations(),
+      storage.getClients(),
+    ]);
+
+    const erpContext = [
+      `Ordens de exportação ativas: ${orders.filter(o => o.status !== "Arquivada").length}`,
+      `Cotações em aberto: ${quotations.filter(q => !["Recusada","Cancelada","Fechada"].includes(q.status || "")).length}`,
+      `Clientes cadastrados: ${clients.length}`,
+    ].join(". ");
+
+    const results: string[] = [];
+    for (const topic of active) {
+      try {
+        const response = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content: `Você é um assistente de briefing empresarial para o ERP Hypertrade, sistema de exportação de papel kraft. Gere uma narração falada, concisa (2-3 frases), em português brasileiro informal porém profissional, sobre o tópico solicitado. Use somente o que foi pedido — não invente dados. Contexto atual do ERP: ${erpContext}.`,
+            },
+            {
+              role: "user",
+              content: `Tópico: "${topic.titulo}". Instrução: ${topic.instrucao}`,
+            },
+          ],
+          max_tokens: 150,
+          temperature: 0.7,
+        });
+        const text = response.choices[0]?.message?.content?.trim();
+        if (text) results.push(`${topic.titulo}. ${text}`);
+      } catch {
+        results.push(`${topic.titulo}. Informação indisponível no momento.`);
+      }
+    }
+    return results;
+  } catch {
+    return [];
+  }
+}
+
 export async function buildAudioProSummaryText(): Promise<string> {
   const now = new Date();
   const todayStr = format(now, "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR });
 
   const cfg = await storage.getAudioProTopicsConfig();
 
-  const [weatherText, dollarText, quotationNotesText, operationsText] = await Promise.all([
+  const [weatherText, dollarText, quotationNotesText, operationsText, customTexts] = await Promise.all([
     cfg.tempo ? fetchWeather() : Promise.resolve(null),
     cfg.dolar ? fetchDollarRate() : Promise.resolve(null),
     cfg.kanbanNotas ? buildQuotationNotesText() : Promise.resolve(null),
     (cfg.operacaoOntem || cfg.cotacoes || cfg.vendasSemana || cfg.vencimentosSemana)
       ? buildProOperationsText(cfg)
       : Promise.resolve(null),
+    generateCustomTopicsText(),
   ]);
 
   const parts: string[] = [];
@@ -651,6 +700,11 @@ export async function buildAudioProSummaryText(): Promise<string> {
   if (quotationNotesText) {
     parts.push("");
     parts.push("Por fim, as anotações do Kanban de cotações. " + quotationNotesText);
+  }
+
+  if (customTexts && customTexts.length > 0) {
+    parts.push("");
+    parts.push("Tópicos personalizados. " + customTexts.join(" "));
   }
 
   parts.push("");

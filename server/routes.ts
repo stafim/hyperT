@@ -1283,6 +1283,45 @@ ${schemaContext}${customContext}`;
     }
   });
 
+  app.get("/api/telegram/audio-pro/custom-topics", async (_req, res) => {
+    try {
+      res.json(await storage.getAudioProCustomTopics());
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/telegram/audio-pro/custom-topics", async (req, res) => {
+    try {
+      const { titulo, instrucao, ativo, ordem } = req.body;
+      if (!titulo?.trim() || !instrucao?.trim()) return res.status(400).json({ error: "titulo e instrucao são obrigatórios." });
+      const row = await storage.createAudioProCustomTopic({ titulo: titulo.trim(), instrucao: instrucao.trim(), ativo: ativo ?? true, ordem: ordem ?? 0 });
+      res.json(row);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.patch("/api/telegram/audio-pro/custom-topics/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const row = await storage.updateAudioProCustomTopic(id, req.body);
+      if (!row) return res.status(404).json({ error: "Tópico não encontrado." });
+      res.json(row);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.delete("/api/telegram/audio-pro/custom-topics/:id", async (req, res) => {
+    try {
+      await storage.deleteAudioProCustomTopic(parseInt(req.params.id));
+      res.json({ ok: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   app.post("/api/telegram/audio-pro", async (_req, res) => {
     try {
       const result = await sendTelegramAudioPro();

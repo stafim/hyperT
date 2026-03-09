@@ -187,6 +187,43 @@ function TelegramPanel() {
     saveProConfigMut.mutate({ ...proConfig, [key]: value });
   };
 
+  const { data: customTopics = [], isLoading: customTopicsLoading } = useQuery<any[]>({
+    queryKey: ["/api/telegram/audio-pro/custom-topics"],
+  });
+  const [showNewTopicForm, setShowNewTopicForm] = useState(false);
+  const [newTopicTitulo, setNewTopicTitulo] = useState("");
+  const [newTopicInstrucao, setNewTopicInstrucao] = useState("");
+
+  const createCustomTopicMut = useMutation({
+    mutationFn: (data: { titulo: string; instrucao: string }) =>
+      apiRequest("POST", "/api/telegram/audio-pro/custom-topics", data).then(r => r.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/telegram/audio-pro/custom-topics"] });
+      setShowNewTopicForm(false);
+      setNewTopicTitulo("");
+      setNewTopicInstrucao("");
+      toast({ title: "✅ Tópico criado!" });
+    },
+    onError: (e: any) => toast({ title: "Erro ao criar tópico", description: e.message, variant: "destructive" }),
+  });
+
+  const toggleCustomTopicMut = useMutation({
+    mutationFn: ({ id, ativo }: { id: number; ativo: boolean }) =>
+      apiRequest("PATCH", `/api/telegram/audio-pro/custom-topics/${id}`, { ativo }).then(r => r.json()),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/telegram/audio-pro/custom-topics"] }),
+    onError: (e: any) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
+  });
+
+  const deleteCustomTopicMut = useMutation({
+    mutationFn: (id: number) =>
+      apiRequest("DELETE", `/api/telegram/audio-pro/custom-topics/${id}`).then(r => r.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/telegram/audio-pro/custom-topics"] });
+      toast({ title: "Tópico removido." });
+    },
+    onError: (e: any) => toast({ title: "Erro ao remover", description: e.message, variant: "destructive" }),
+  });
+
   const customMut = useMutation({
     mutationFn: () => apiRequest("POST", "/api/telegram/custom", { message: customMsg }).then(r => r.json()),
     onSuccess: (data: any) => {
@@ -344,7 +381,8 @@ function TelegramPanel() {
                       <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                     </div>
                   ) : proConfig ? (
-                    <div className="space-y-1">
+                    <div className="space-y-1 overflow-y-auto max-h-[calc(100vh-180px)] pr-1">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-3 pb-1">Tópicos fixos</p>
                       {[
                         { key: "tempo", label: "Previsão do Tempo", desc: "Temperatura e chuva em SJP", icon: "🌤️" },
                         { key: "dolar", label: "Cotação do Dólar", desc: "PTAX do Banco Central", icon: "💵" },
@@ -371,6 +409,88 @@ function TelegramPanel() {
                           />
                         </div>
                       ))}
+
+                      <Separator className="my-3" />
+                      <div className="flex items-center justify-between px-3 pb-1">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Tópicos personalizados</p>
+                        <button
+                          className="flex items-center gap-1 text-xs text-amber-600 hover:text-amber-700 font-medium transition-colors"
+                          onClick={() => { setShowNewTopicForm(v => !v); setNewTopicTitulo(""); setNewTopicInstrucao(""); }}
+                          data-testid="button-new-custom-topic"
+                        >
+                          <span className="text-base leading-none">+</span> Novo tópico
+                        </button>
+                      </div>
+
+                      {showNewTopicForm && (
+                        <div className="mx-3 p-3 rounded-lg border border-amber-300/50 bg-amber-50/50 dark:bg-amber-950/20 space-y-2">
+                          <div>
+                            <Label className="text-xs font-medium">Título</Label>
+                            <Input
+                              className="mt-1 h-8 text-sm"
+                              placeholder="Ex: Meta de faturamento"
+                              value={newTopicTitulo}
+                              onChange={e => setNewTopicTitulo(e.target.value)}
+                              data-testid="input-custom-topic-titulo"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs font-medium">Instrução para a IA</Label>
+                            <Textarea
+                              className="mt-1 text-sm resize-none"
+                              rows={3}
+                              placeholder="Ex: Fale sobre o progresso da meta de faturamento do mês baseando-se nas ordens de exportação ativas."
+                              value={newTopicInstrucao}
+                              onChange={e => setNewTopicInstrucao(e.target.value)}
+                              data-testid="input-custom-topic-instrucao"
+                            />
+                          </div>
+                          <div className="flex gap-2 justify-end">
+                            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setShowNewTopicForm(false)}>Cancelar</Button>
+                            <Button
+                              size="sm"
+                              className="h-7 text-xs bg-amber-500 hover:bg-amber-600 text-white"
+                              disabled={!newTopicTitulo.trim() || !newTopicInstrucao.trim() || createCustomTopicMut.isPending}
+                              onClick={() => createCustomTopicMut.mutate({ titulo: newTopicTitulo, instrucao: newTopicInstrucao })}
+                              data-testid="button-save-custom-topic"
+                            >
+                              {createCustomTopicMut.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Salvar"}
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+
+                      {customTopicsLoading ? (
+                        <div className="flex justify-center py-4"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /></div>
+                      ) : customTopics.length === 0 && !showNewTopicForm ? (
+                        <p className="text-xs text-muted-foreground text-center py-4 px-3">Nenhum tópico personalizado ainda. Clique em "+ Novo tópico" para criar.</p>
+                      ) : (
+                        customTopics.map((topic: any) => (
+                          <div key={topic.id} className="flex items-start justify-between py-2 px-3 rounded-lg hover:bg-muted/50 transition-colors group" data-testid={`custom-topic-${topic.id}`}>
+                            <div className="flex-1 min-w-0 mr-2">
+                              <p className="text-sm font-medium truncate">{topic.titulo}</p>
+                              <p className="text-xs text-muted-foreground line-clamp-2">{topic.instrucao}</p>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <Switch
+                                checked={!!topic.ativo}
+                                onCheckedChange={(val) => toggleCustomTopicMut.mutate({ id: topic.id, ativo: val })}
+                                disabled={toggleCustomTopicMut.isPending}
+                                data-testid={`switch-custom-${topic.id}`}
+                              />
+                              <button
+                                className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all"
+                                onClick={() => deleteCustomTopicMut.mutate(topic.id)}
+                                disabled={deleteCustomTopicMut.isPending}
+                                title="Remover tópico"
+                                data-testid={`button-delete-custom-topic-${topic.id}`}
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      )}
                     </div>
                   ) : null}
                 </SheetContent>

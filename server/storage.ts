@@ -4,7 +4,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import {
   suppliers, clients, clientDocuments, products, quotations, quotationSendLog, quotationNotes, exportOrders, orderAuditLog, platformUsers, shipmentTracking,
-  documentos, documentoAuditLog, lpco, audioProTopicsConfig, telegramNotificationConfig,
+  documentos, documentoAuditLog, lpco, audioProTopicsConfig, audioProCustomTopics, telegramNotificationConfig,
   type Supplier, type InsertSupplier,
   type Client, type InsertClient,
   type ClientDocument, type InsertClientDocument,
@@ -19,6 +19,7 @@ import {
   type Documento, type InsertDocumento, type DocumentoAuditEntry,
   type Lpco, type InsertLpco,
   type AudioProTopicsConfig,
+  type AudioProCustomTopic, type InsertAudioProCustomTopic,
   type TelegramConfig,
 } from "@shared/schema";
 
@@ -96,6 +97,10 @@ export interface IStorage {
 
   getAudioProTopicsConfig(): Promise<AudioProTopicsConfig>;
   saveAudioProTopicsConfig(data: Partial<Omit<AudioProTopicsConfig, "id" | "updatedAt">>): Promise<AudioProTopicsConfig>;
+  getAudioProCustomTopics(): Promise<AudioProCustomTopic[]>;
+  createAudioProCustomTopic(data: InsertAudioProCustomTopic): Promise<AudioProCustomTopic>;
+  updateAudioProCustomTopic(id: number, data: Partial<InsertAudioProCustomTopic>): Promise<AudioProCustomTopic | undefined>;
+  deleteAudioProCustomTopic(id: number): Promise<void>;
   getTelegramConfig(): Promise<TelegramConfig>;
   saveTelegramConfig(data: Partial<Omit<TelegramConfig, "id" | "updatedAt">>): Promise<TelegramConfig>;
 
@@ -784,6 +789,24 @@ export class DatabaseStorage implements IStorage {
       .where(eq(audioProTopicsConfig.id, existing.id))
       .returning();
     return row;
+  }
+
+  async getAudioProCustomTopics(): Promise<AudioProCustomTopic[]> {
+    return db.select().from(audioProCustomTopics).orderBy(audioProCustomTopics.ordem, audioProCustomTopics.id);
+  }
+
+  async createAudioProCustomTopic(data: InsertAudioProCustomTopic): Promise<AudioProCustomTopic> {
+    const [row] = await db.insert(audioProCustomTopics).values(data).returning();
+    return row;
+  }
+
+  async updateAudioProCustomTopic(id: number, data: Partial<InsertAudioProCustomTopic>): Promise<AudioProCustomTopic | undefined> {
+    const [row] = await db.update(audioProCustomTopics).set(data).where(eq(audioProCustomTopics.id, id)).returning();
+    return row;
+  }
+
+  async deleteAudioProCustomTopic(id: number): Promise<void> {
+    await db.delete(audioProCustomTopics).where(eq(audioProCustomTopics.id, id));
   }
 
   async getTelegramConfig(): Promise<TelegramConfig> {
