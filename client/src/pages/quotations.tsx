@@ -16,7 +16,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   Plus, Search, Pencil, Trash2, FileCheck, Send, Mail, MessageCircle,
-  ArrowRight, ChevronDown, ChevronRight, Clock, Eye, TrendingUp, DollarSign, FileDown,
+  ArrowRight, ChevronDown, ChevronRight, Clock, Eye, TrendingUp, FileDown,
 } from "lucide-react";
 import { insertQuotationSchema, type QuotationWithDetails, type InsertQuotation, type Client, type Product, type Supplier, type QuotationSendLogEntry } from "@shared/schema";
 import { z } from "zod";
@@ -58,44 +58,6 @@ const formSchema = insertQuotationSchema.extend({
   margem: z.string().optional().nullable(),
 });
 
-const countryToCurrency: Record<string, string> = {
-  Brasil: "BRL",
-  Argentina: "ARS",
-  Chile: "CLP",
-  Uruguai: "UYU",
-  Paraguai: "PYG",
-  "México": "MXN",
-  Mexico: "MXN",
-};
-
-const currencySymbols: Record<string, string> = {
-  BRL: "R$",
-  ARS: "ARS$",
-  CLP: "CLP$",
-  UYU: "UYU$",
-  PYG: "PYG",
-  MXN: "MX$",
-  USD: "US$",
-};
-
-type QuotesData = {
-  base: string;
-  date: string;
-  currencies: Array<{
-    code: string;
-    name: string;
-    country: string;
-    rate: number;
-  }>;
-};
-
-function formatLocalCurrency(value: number, currencyCode: string) {
-  const symbol = currencySymbols[currencyCode] || currencyCode;
-  if (currencyCode === "PYG") {
-    return `${symbol} ${Math.round(value).toLocaleString("pt-BR")}`;
-  }
-  return `${symbol} ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
 
 function CostRevenuePanel({
   clientId,
@@ -105,7 +67,6 @@ function CostRevenuePanel({
   margem,
   clientsList,
   productsList,
-  quotesData,
 }: {
   clientId: number;
   productId: number;
@@ -114,7 +75,6 @@ function CostRevenuePanel({
   margem?: string | null;
   clientsList?: Client[];
   productsList?: Product[];
-  quotesData?: QuotesData;
 }) {
   const price = typeof unitPrice === "string" ? parseFloat(unitPrice) : unitPrice;
   if (!clientId || !productId || !price || !quantity || isNaN(price) || price <= 0 || quantity <= 0) return null;
@@ -135,11 +95,6 @@ function CostRevenuePanel({
   const displayMargem = margemNum !== null && !isNaN(margemNum) && margemNum > 0
     ? margemNum
     : totalUsd > 0 ? ((totalUsd - costUsd) / totalUsd) * 100 : 0;
-
-  const currencyCode = countryToCurrency[client.country] || null;
-  const currencyData = currencyCode ? quotesData?.currencies?.find((c) => c.code === currencyCode) : null;
-  const exchangeRate = currencyData ? currencyData.rate : null;
-  const clientCostLocal = exchangeRate !== null && exchangeRate > 0 ? totalUsd * exchangeRate : null;
 
   return (
     <div className="rounded-lg border-2 border-primary/20 bg-primary/5 p-4 space-y-3" data-testid="panel-cost-revenue">
@@ -162,28 +117,6 @@ function CostRevenuePanel({
           <p className="text-lg font-bold">{formatCurrency(costUsd)}</p>
         </div>
       </div>
-
-      {currencyCode !== null && clientCostLocal !== null && exchangeRate !== null ? (
-        <div className="rounded-md bg-blue-50 dark:bg-blue-950/30 p-3 border border-blue-200 dark:border-blue-800" data-testid="card-client-cost">
-          <div className="flex items-center gap-2 mb-1">
-            <DollarSign className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
-            <p className="text-xs font-medium text-blue-700 dark:text-blue-300">
-              Custo Cliente ({client.country} - {currencyCode})
-            </p>
-          </div>
-          <p className="text-lg font-bold text-blue-900 dark:text-blue-100">
-            {formatLocalCurrency(clientCostLocal, currencyCode)}
-          </p>
-          <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">
-            Câmbio do dia: 1 USD = {exchangeRate.toFixed(4)} {currencyCode}
-          </p>
-        </div>
-      ) : currencyCode !== null ? (
-        <div className="rounded-md bg-muted/50 p-3 border text-sm text-muted-foreground" data-testid="card-client-cost-unavailable">
-          <DollarSign className="h-3.5 w-3.5 inline mr-1" />
-          Câmbio {currencyCode} indisponível no momento
-        </div>
-      ) : null}
 
       <div className={`rounded-md p-3 border ${lucroUsd >= 0 ? "bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800" : "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800"}`} data-testid="card-revenue">
         <div className="flex items-center justify-between mb-2">
@@ -215,7 +148,6 @@ function QuotationForm({ editQuotation, onSuccess }: { editQuotation: QuotationW
   const { data: clientsList } = useQuery<Client[]>({ queryKey: ["/api/clients"] });
   const { data: productsList } = useQuery<Product[]>({ queryKey: ["/api/products"] });
   const { data: suppliersList } = useQuery<Supplier[]>({ queryKey: ["/api/suppliers"] });
-  const { data: quotesData } = useQuery<QuotesData>({ queryKey: ["/api/quotes"] });
 
   const form = useForm<InsertQuotation>({
     resolver: zodResolver(formSchema),
@@ -407,7 +339,6 @@ function QuotationForm({ editQuotation, onSuccess }: { editQuotation: QuotationW
           margem={form.watch("margem" as any)}
           clientsList={clientsList}
           productsList={productsList}
-          quotesData={quotesData}
         />
 
         <FormField control={form.control} name="paymentTerms" render={({ field }) => (
