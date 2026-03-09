@@ -444,13 +444,62 @@ async function fetchDollarRate(): Promise<string> {
   }
 }
 
+const statusLabels: Record<string, string> = {
+  rascunho: "em rascunho",
+  enviada: "enviada",
+  aceita: "aceita",
+  recusada: "recusada",
+  convertida: "convertida em pedido",
+};
+
+async function buildQuotationNotesText(): Promise<string> {
+  try {
+    const quotations = await storage.getQuotations();
+    const results: string[] = [];
+
+    for (const q of quotations) {
+      const notes = await storage.getQuotationNotes(q.id);
+      if (!notes.length) continue;
+
+      const clientName = q.client?.name ?? "cliente desconhecido";
+      const statusLabel = statusLabels[q.status] ?? q.status;
+      const totalLabel = q.totalValue
+        ? `no valor de ${parseFloat(String(q.totalValue)).toLocaleString("pt-BR", { style: "currency", currency: "USD" })}`
+        : "";
+
+      results.push(
+        `Cotação número ${q.id}, cliente ${clientName}, ${totalLabel}, status ${statusLabel}. Esta cotação possui ${notes.length} ${notes.length === 1 ? "anotação" : "anotações"}.`
+      );
+
+      notes.forEach((note, i) => {
+        const when = format(new Date(note.createdAt!), "dd 'de' MMMM 'às' HH:mm", { locale: ptBR });
+        results.push(
+          `Anotação ${i + 1}, feita por ${note.author} em ${when}: "${note.content}".`
+        );
+      });
+    }
+
+    if (!results.length) {
+      return "Não há cotações com anotações no Kanban no momento.";
+    }
+
+    return `As seguintes cotações possuem anotações registradas no Kanban. ${results.join(" ")}`;
+  } catch {
+    return "Não foi possível carregar as anotações do Kanban no momento.";
+  }
+}
+
 export async function buildAudioProSummaryText(): Promise<string> {
   const now = new Date();
   const dateStr = format(now, "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
   const hour = now.getHours();
   const greeting = hour < 12 ? "Bom dia" : hour < 18 ? "Boa tarde" : "Boa noite";
 
-  const [weatherText, dollarText] = await Promise.all([fetchWeather(), fetchDollarRate()]);
+  const [weatherText, dollarText, quotationNotesText] = await Promise.all([
+    fetchWeather(),
+    fetchDollarRate(),
+    buildQuotationNotesText(),
+  ]);
 
   const businessText = await buildAudioSummaryText();
 
@@ -466,6 +515,9 @@ export async function buildAudioProSummaryText(): Promise<string> {
 
   parts.push("");
   parts.push("Em relação à sua caixa de entrada de e-mails: não há mensagens novas no momento. Parabéns, sua caixa está zerada! Continue assim.");
+
+  parts.push("");
+  parts.push("Agora, as anotações do Kanban de cotações. " + quotationNotesText);
 
   parts.push("");
   parts.push("E agora, as informações da sua empresa para hoje.");
