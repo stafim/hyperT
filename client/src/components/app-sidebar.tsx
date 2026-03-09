@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, Package, FileText, CircleDollarSign, Factory, ClipboardList, FileCheck, CalendarClock, TrendingUp, UserCog, Globe, FolderLock, ShieldCheck, AlertTriangle, BrainCircuit, SlidersHorizontal } from "lucide-react";
+import { LayoutDashboard, Users, Package, FileText, CircleDollarSign, Factory, ClipboardList, FileCheck, CalendarClock, TrendingUp, UserCog, Globe, FolderLock, ShieldCheck, AlertTriangle, BrainCircuit, SlidersHorizontal, BellRing } from "lucide-react";
 import logoPath from "@assets/Captura_de_tela_2026-02-27_111909_1772203458683.png";
 import { useLocation, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -41,6 +41,7 @@ const cadastroItems = [
   { title: "Produtos", url: "/products", icon: Package },
   { title: "Usuários", url: "/platform-users", icon: UserCog },
   { title: "Calibragem de IA", url: "/calibragem-ia", icon: SlidersHorizontal },
+  { title: "Notificações Telegram", url: "/telegram-config", icon: BellRing },
 ];
 
 function MenuGroup({ items, location }: { items: { title: string; url: string; icon: React.ElementType }[]; location: string }) {

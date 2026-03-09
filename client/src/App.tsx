@@ -24,6 +24,7 @@ import Documentos from "@/pages/documentos";
 import LpcoPage from "@/pages/lpco";
 import QueryAI from "@/pages/query-ai";
 import CalibragemIA from "@/pages/calibragem-ia";
+import TelegramConfig from "@/pages/telegram-config";
 import PortalLogin from "@/pages/portal-login";
 import PortalDashboard from "@/pages/portal-dashboard";
 
@@ -55,6 +56,7 @@ function MainRouter() {
       <Route path="/lpco" component={LpcoPage} />
       <Route path="/query-ai" component={QueryAI} />
       <Route path="/calibragem-ia" component={CalibragemIA} />
+      <Route path="/telegram-config" component={TelegramConfig} />
       <Route component={NotFound} />
     </Switch>
   );

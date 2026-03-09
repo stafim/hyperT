@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { isTelegramConfigured, sendTelegramMessage, buildDailyReport, buildVencimentosAlert, buildLpcoAlert } from "./telegram";
+import { isTelegramConfigured, sendTelegramMessage, buildDailyReport, buildVencimentosAlert, buildLpcoAlert, notifyNewClient, notifyNewSupplier, notifyNewProduct, notifyNewQuotation, notifyNewOrder } from "./telegram";
 import { insertClientSchema, insertClientDocumentSchema, insertProductSchema, insertSupplierSchema, insertQuotationSchema, insertPlatformUserSchema, insertShipmentTrackingSchema } from "@shared/schema";
 import OpenAI from "openai";
 import { registerPortalRoutes } from "./portal-routes";
@@ -56,6 +56,7 @@ export async function registerRoutes(
     const result = insertSupplierSchema.safeParse(req.body);
     if (!result.success) return res.status(400).json({ message: result.error.message });
     const supplier = await storage.createSupplier(result.data);
+    notifyNewSupplier(supplier).catch(() => {});
     res.status(201).json(supplier);
   });
 
@@ -88,6 +89,7 @@ export async function registerRoutes(
     const result = insertClientSchema.safeParse(req.body);
     if (!result.success) return res.status(400).json({ message: result.error.message });
     const client = await storage.createClient(result.data);
+    notifyNewClient(client).catch(() => {});
     res.status(201).json(client);
   });
 
@@ -148,6 +150,7 @@ export async function registerRoutes(
     const result = insertProductSchema.safeParse(req.body);
     if (!result.success) return res.status(400).json({ message: result.error.message });
     const product = await storage.createProduct(result.data);
+    notifyNewProduct(product).catch(() => {});
     res.status(201).json(product);
   });
 
@@ -180,6 +183,12 @@ export async function registerRoutes(
     const result = insertQuotationSchema.safeParse(req.body);
     if (!result.success) return res.status(400).json({ message: result.error.message });
     const quotation = await storage.createQuotation(result.data);
+    (async () => {
+      try {
+        const full = await storage.getQuotation(quotation.id);
+        if (full) await notifyNewQuotation({ ...quotation, clientName: full.client?.name, productName: full.product?.type });
+      } catch {}
+    })();
     res.status(201).json(quotation);
   });
 
@@ -263,6 +272,7 @@ export async function registerRoutes(
         userName,
         snapshot: order,
       });
+      notifyNewOrder({ ...order, clientName: client.name, productName: product.type }).catch(() => {});
       res.status(201).json(order);
     } catch (e: any) {
       res.status(400).json({ message: e.message });
@@ -1147,6 +1157,25 @@ ${schemaContext}${customContext}`;
 
   app.get("/api/telegram/status", (_req, res) => {
     res.json({ configured: isTelegramConfigured() });
+  });
+
+  app.get("/api/telegram/config", async (_req, res) => {
+    try {
+      const cfg = await storage.getTelegramConfig();
+      res.json(cfg);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.put("/api/telegram/config", async (req, res) => {
+    try {
+      const { enabled, onNewQuotation, onNewOrder, onNewClient, onNewSupplier, onNewProduct } = req.body;
+      const cfg = await storage.saveTelegramConfig({ enabled, onNewQuotation, onNewOrder, onNewClient, onNewSupplier, onNewProduct });
+      res.json(cfg);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
   });
 
   app.post("/api/telegram/test", async (_req, res) => {

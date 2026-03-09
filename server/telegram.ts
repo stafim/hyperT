@@ -1,6 +1,7 @@
 import { storage } from "./storage";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import type { Client, Supplier, Product, Quotation, ExportOrder } from "@shared/schema";
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID;
@@ -174,4 +175,97 @@ export async function buildLpcoAlert(): Promise<string> {
   lines.push(``);
   lines.push(`<i>Gerado automaticamente pelo Hypertrade ERP</i>`);
   return lines.join("\n");
+}
+
+// ─── Event-Driven Notifications ───────────────────────────────────────────────
+
+async function shouldNotify(field: "onNewQuotation" | "onNewOrder" | "onNewClient" | "onNewSupplier" | "onNewProduct"): Promise<boolean> {
+  try {
+    const cfg = await storage.getTelegramConfig();
+    return cfg.enabled && cfg[field];
+  } catch {
+    return false;
+  }
+}
+
+export async function notifyNewClient(client: Client): Promise<void> {
+  if (!await shouldNotify("onNewClient")) return;
+  const text = [
+    `👤 <b>Novo Cliente Cadastrado</b>`,
+    `📅 ${today()}`,
+    ``,
+    `• <b>Nome:</b> ${client.name}`,
+    `• <b>País:</b> ${client.country}`,
+    client.email ? `• <b>Email:</b> ${client.email}` : null,
+    client.phone ? `• <b>Telefone:</b> ${client.phone}` : null,
+    ``,
+    `<i>Hypertrade ERP</i>`,
+  ].filter(Boolean).join("\n");
+  await sendTelegramMessage(text);
+}
+
+export async function notifyNewSupplier(supplier: Supplier): Promise<void> {
+  if (!await shouldNotify("onNewSupplier")) return;
+  const text = [
+    `🏭 <b>Novo Fornecedor Cadastrado</b>`,
+    `📅 ${today()}`,
+    ``,
+    `• <b>Nome:</b> ${supplier.name}`,
+    supplier.city ? `• <b>Cidade:</b> ${supplier.city}${supplier.state ? `/${supplier.state}` : ""}` : null,
+    supplier.email ? `• <b>Email:</b> ${supplier.email}` : null,
+    supplier.phone ? `• <b>Telefone:</b> ${supplier.phone}` : null,
+    ``,
+    `<i>Hypertrade ERP</i>`,
+  ].filter(Boolean).join("\n");
+  await sendTelegramMessage(text);
+}
+
+export async function notifyNewProduct(product: Product): Promise<void> {
+  if (!await shouldNotify("onNewProduct")) return;
+  const text = [
+    `📦 <b>Novo Produto Cadastrado</b>`,
+    `📅 ${today()}`,
+    ``,
+    `• <b>Tipo:</b> ${product.type}`,
+    `• <b>Gramatura:</b> ${product.grammage}`,
+    `• <b>Unidade:</b> ${product.unidade}`,
+    ``,
+    `<i>Hypertrade ERP</i>`,
+  ].filter(Boolean).join("\n");
+  await sendTelegramMessage(text);
+}
+
+export async function notifyNewQuotation(quotation: Quotation & { clientName?: string; productName?: string }): Promise<void> {
+  if (!await shouldNotify("onNewQuotation")) return;
+  const text = [
+    `📋 <b>Nova Cotação Criada</b>`,
+    `📅 ${today()}`,
+    ``,
+    quotation.clientName ? `• <b>Cliente:</b> ${quotation.clientName}` : null,
+    quotation.productName ? `• <b>Produto:</b> ${quotation.productName}` : null,
+    `• <b>Quantidade:</b> ${Number(quotation.quantity).toLocaleString("pt-BR")} un`,
+    `• <b>Total:</b> ${fmt(Number(quotation.total ?? 0))}`,
+    `• <b>Validade:</b> ${quotation.validityDate ? new Date(quotation.validityDate + "T00:00:00").toLocaleDateString("pt-BR") : "—"}`,
+    ``,
+    `<i>Hypertrade ERP</i>`,
+  ].filter(Boolean).join("\n");
+  await sendTelegramMessage(text);
+}
+
+export async function notifyNewOrder(order: ExportOrder & { clientName?: string; productName?: string }): Promise<void> {
+  if (!await shouldNotify("onNewOrder")) return;
+  const text = [
+    `🚢 <b>Nova Ordem de Exportação</b>`,
+    `📅 ${today()}`,
+    ``,
+    `• <b>Invoice:</b> ${order.invoice}`,
+    order.clientName ? `• <b>Cliente:</b> ${order.clientName}` : null,
+    order.productName ? `• <b>Produto:</b> ${order.productName}` : null,
+    `• <b>Quantidade:</b> ${Number(order.quantity).toLocaleString("pt-BR")} un`,
+    `• <b>Total:</b> ${fmt(Number(order.total ?? 0))}`,
+    `• <b>Modal:</b> ${order.modal}`,
+    ``,
+    `<i>Hypertrade ERP</i>`,
+  ].filter(Boolean).join("\n");
+  await sendTelegramMessage(text);
 }

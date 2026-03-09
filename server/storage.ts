@@ -4,7 +4,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import {
   suppliers, clients, clientDocuments, products, quotations, quotationSendLog, exportOrders, orderAuditLog, platformUsers, shipmentTracking,
-  documentos, documentoAuditLog, lpco,
+  documentos, documentoAuditLog, lpco, telegramNotificationConfig,
   type Supplier, type InsertSupplier,
   type Client, type InsertClient,
   type ClientDocument, type InsertClientDocument,
@@ -18,6 +18,7 @@ import {
   type ShipmentTracking, type InsertShipmentTracking,
   type Documento, type InsertDocumento, type DocumentoAuditEntry,
   type Lpco, type InsertLpco,
+  type TelegramConfig,
 } from "@shared/schema";
 
 export const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
@@ -88,6 +89,9 @@ export interface IStorage {
   createLpco(data: InsertLpco): Promise<Lpco>;
   updateLpco(id: number, data: Partial<InsertLpco>): Promise<Lpco | undefined>;
   deleteLpco(id: number): Promise<void>;
+
+  getTelegramConfig(): Promise<TelegramConfig>;
+  saveTelegramConfig(data: Partial<Omit<TelegramConfig, "id" | "updatedAt">>): Promise<TelegramConfig>;
 
   getDashboardStats(filters?: { startDate?: string; endDate?: string }): Promise<{
     totalRevenue: number;
@@ -742,6 +746,23 @@ export class DatabaseStorage implements IStorage {
 
   async deleteLpco(id: number): Promise<void> {
     await db.delete(lpco).where(eq(lpco.id, id));
+  }
+
+  async getTelegramConfig(): Promise<TelegramConfig> {
+    const [row] = await db.select().from(telegramNotificationConfig).limit(1);
+    if (row) return row;
+    const [created] = await db.insert(telegramNotificationConfig).values({}).returning();
+    return created;
+  }
+
+  async saveTelegramConfig(data: Partial<Omit<TelegramConfig, "id" | "updatedAt">>): Promise<TelegramConfig> {
+    const existing = await this.getTelegramConfig();
+    const [row] = await db
+      .update(telegramNotificationConfig)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(telegramNotificationConfig.id, existing.id))
+      .returning();
+    return row;
   }
 }
 

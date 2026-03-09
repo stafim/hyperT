@@ -271,3 +271,17 @@ export type PlatformUser = typeof platformUsers.$inferSelect;
 
 export type InsertShipmentTracking = z.infer<typeof insertShipmentTrackingSchema>;
 export type ShipmentTracking = typeof shipmentTracking.$inferSelect;
+
+// ─── Telegram Notification Config ─────────────────────────────────────────────
+export const telegramNotificationConfig = pgTable("telegram_notification_config", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  enabled: boolean("enabled").notNull().default(false),
+  onNewQuotation: boolean("on_new_quotation").notNull().default(false),
+  onNewOrder: boolean("on_new_order").notNull().default(false),
+  onNewClient: boolean("on_new_client").notNull().default(false),
+  onNewSupplier: boolean("on_new_supplier").notNull().default(false),
+  onNewProduct: boolean("on_new_product").notNull().default(false),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export type TelegramConfig = typeof telegramNotificationConfig.$inferSelect;
