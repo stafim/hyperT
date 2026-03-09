@@ -45,3 +45,9 @@ waitForPort = 5000
 [agent]
 integrations = ["javascript_openai_ai_integrations:2.0.0"]
 expertMode = true
+
+[userenv]
+
+[userenv.shared]
+TELEGRAM_BOT_TOKEN = "8514190413:AAGkYVxWo__R4NRhEyDgmsFFIQlB6bpXyL0"
+TELEGRAM_CHAT_ID = "467268674"

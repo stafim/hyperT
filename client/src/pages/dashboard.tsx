@@ -1,11 +1,17 @@
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { DollarSign, Package, FileText, TrendingUp, Globe, Truck, Ship, ShieldCheck, BarChart3, CalendarDays, Landmark, Settings2, Layers, Navigation, ShoppingCart, Target, Percent, Wallet } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Separator } from "@/components/ui/separator";
+import { useToast } from "@/hooks/use-toast";
+import { DollarSign, Package, FileText, TrendingUp, Globe, Truck, Ship, ShieldCheck, BarChart3, CalendarDays, Landmark, Settings2, Layers, Navigation, ShoppingCart, Target, Percent, Wallet, Send, CheckCircle2, AlertCircle, Loader2, CalendarClock } from "lucide-react";
+import { SiTelegram } from "react-icons/si";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line, Legend, AreaChart, Area
@@ -125,6 +131,163 @@ function StatCard({
         {subtitle && <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>}
       </CardContent>
     </Card>
+  );
+}
+
+function TelegramPanel() {
+  const [open, setOpen] = useState(false);
+  const [customMsg, setCustomMsg] = useState("");
+  const { toast } = useToast();
+
+  const { data: status } = useQuery<{ configured: boolean }>({
+    queryKey: ["/api/telegram/status"],
+    queryFn: () => fetch("/api/telegram/status").then(r => r.json()),
+  });
+
+  const configured = status?.configured ?? false;
+
+  function useSend(endpoint: string) {
+    return useMutation({
+      mutationFn: (body?: Record<string, string>) =>
+        apiRequest("POST", endpoint, body).then(r => r.json()),
+      onSuccess: (data: any) => {
+        toast({ title: "✅ Enviado!", description: data.message });
+      },
+      onError: (e: any) => {
+        toast({ title: "Erro ao enviar", description: e.message, variant: "destructive" });
+      },
+    });
+  }
+
+  const testMut = useSend("/api/telegram/test");
+  const reportMut = useSend("/api/telegram/report");
+  const vencMut = useSend("/api/telegram/vencimentos");
+  const lpcoMut = useSend("/api/telegram/lpco");
+  const customMut = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/telegram/custom", { message: customMsg }).then(r => r.json()),
+    onSuccess: (data: any) => {
+      toast({ title: "✅ Enviado!", description: data.message });
+      setCustomMsg("");
+    },
+    onError: (e: any) => toast({ title: "Erro ao enviar", description: e.message, variant: "destructive" }),
+  });
+
+  const anyPending = testMut.isPending || reportMut.isPending || vencMut.isPending || lpcoMut.isPending || customMut.isPending;
+
+  return (
+    <>
+      <Button
+        variant="outline"
+        size="sm"
+        className="gap-1.5 text-xs border-[#2AABEE] text-[#2AABEE] hover:bg-[#2AABEE]/10"
+        onClick={() => setOpen(true)}
+        data-testid="button-telegram-panel"
+      >
+        <SiTelegram className="h-3.5 w-3.5" />
+        Telegram
+      </Button>
+
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetContent className="w-80 sm:w-96 overflow-y-auto">
+          <SheetHeader className="pb-2">
+            <SheetTitle className="flex items-center gap-2">
+              <SiTelegram className="h-5 w-5 text-[#2AABEE]" />
+              Notificações Telegram
+            </SheetTitle>
+          </SheetHeader>
+
+          <div className="mt-2 mb-4 flex items-center gap-2 text-xs">
+            {configured ? (
+              <span className="flex items-center gap-1 text-green-600"><CheckCircle2 className="h-3.5 w-3.5" /> Configurado e ativo</span>
+            ) : (
+              <span className="flex items-center gap-1 text-red-500"><AlertCircle className="h-3.5 w-3.5" /> Credenciais não configuradas</span>
+            )}
+          </div>
+
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Envio Rápido</p>
+
+              <button
+                className="w-full flex items-center gap-3 rounded-lg border p-3 text-left hover:bg-muted/40 transition-colors disabled:opacity-50"
+                onClick={() => testMut.mutate()}
+                disabled={anyPending || !configured}
+                data-testid="button-telegram-test"
+              >
+                {testMut.isPending ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground shrink-0" /> : <Send className="h-4 w-4 text-[#2AABEE] shrink-0" />}
+                <div>
+                  <p className="text-sm font-medium">Mensagem de Teste</p>
+                  <p className="text-xs text-muted-foreground">Confirmar que a conexão está funcionando</p>
+                </div>
+              </button>
+
+              <button
+                className="w-full flex items-center gap-3 rounded-lg border p-3 text-left hover:bg-muted/40 transition-colors disabled:opacity-50"
+                onClick={() => reportMut.mutate()}
+                disabled={anyPending || !configured}
+                data-testid="button-telegram-report"
+              >
+                {reportMut.isPending ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground shrink-0" /> : <BarChart3 className="h-4 w-4 text-primary shrink-0" />}
+                <div>
+                  <p className="text-sm font-medium">Relatório Diário</p>
+                  <p className="text-xs text-muted-foreground">Ordens, faturamento e cotações</p>
+                </div>
+              </button>
+
+              <button
+                className="w-full flex items-center gap-3 rounded-lg border p-3 text-left hover:bg-muted/40 transition-colors disabled:opacity-50"
+                onClick={() => vencMut.mutate()}
+                disabled={anyPending || !configured}
+                data-testid="button-telegram-vencimentos"
+              >
+                {vencMut.isPending ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground shrink-0" /> : <CalendarClock className="h-4 w-4 text-yellow-500 shrink-0" />}
+                <div>
+                  <p className="text-sm font-medium">Alerta de Vencimentos</p>
+                  <p className="text-xs text-muted-foreground">Faturas vencidas e próximas de vencer</p>
+                </div>
+              </button>
+
+              <button
+                className="w-full flex items-center gap-3 rounded-lg border p-3 text-left hover:bg-muted/40 transition-colors disabled:opacity-50"
+                onClick={() => lpcoMut.mutate()}
+                disabled={anyPending || !configured}
+                data-testid="button-telegram-lpco"
+              >
+                {lpcoMut.isPending ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground shrink-0" /> : <ShieldCheck className="h-4 w-4 text-amber-500 shrink-0" />}
+                <div>
+                  <p className="text-sm font-medium">Alerta de LPCO</p>
+                  <p className="text-xs text-muted-foreground">Licenças vencendo nos próximos 90 dias</p>
+                </div>
+              </button>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Mensagem Personalizada</p>
+              <Textarea
+                placeholder="Digite sua mensagem aqui..."
+                value={customMsg}
+                onChange={e => setCustomMsg(e.target.value)}
+                rows={4}
+                className="text-sm resize-none"
+                data-testid="textarea-telegram-custom"
+              />
+              <Button
+                className="w-full gap-2 bg-[#2AABEE] hover:bg-[#1a8ec0] text-white"
+                size="sm"
+                disabled={!customMsg.trim() || anyPending || !configured}
+                onClick={() => customMut.mutate()}
+                data-testid="button-telegram-send-custom"
+              >
+                {customMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                Enviar Mensagem
+              </Button>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+    </>
   );
 }
 
@@ -369,6 +532,9 @@ export default function Dashboard() {
                   {section.label}
                 </Button>
               ))}
+              <div className="ml-auto">
+                <TelegramPanel />
+              </div>
             </div>
           </div>
         </CardContent>

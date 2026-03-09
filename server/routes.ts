@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { isTelegramConfigured, sendTelegramMessage, buildDailyReport, buildVencimentosAlert, buildLpcoAlert } from "./telegram";
 import { insertClientSchema, insertClientDocumentSchema, insertProductSchema, insertSupplierSchema, insertQuotationSchema, insertPlatformUserSchema, insertShipmentTrackingSchema } from "@shared/schema";
 import OpenAI from "openai";
 import { registerPortalRoutes } from "./portal-routes";
@@ -1141,6 +1142,64 @@ ${schemaContext}${customContext}`;
   });
 
   registerPortalRoutes(app);
+
+  // ─── Telegram Notifications ──────────────────────────────────────────────────
+
+  app.get("/api/telegram/status", (_req, res) => {
+    res.json({ configured: isTelegramConfigured() });
+  });
+
+  app.post("/api/telegram/test", async (_req, res) => {
+    const msg = `✅ <b>Hypertrade ERP</b>\n\nConexão com o Telegram funcionando!\n📅 ${new Date().toLocaleString("pt-BR")}`;
+    const result = await sendTelegramMessage(msg);
+    if (result.ok) res.json({ ok: true, message: "Mensagem de teste enviada com sucesso." });
+    else res.status(500).json({ ok: false, error: result.error });
+  });
+
+  app.post("/api/telegram/report", async (_req, res) => {
+    try {
+      const text = await buildDailyReport();
+      const result = await sendTelegramMessage(text);
+      if (result.ok) res.json({ ok: true, message: "Relatório enviado com sucesso." });
+      else res.status(500).json({ ok: false, error: result.error });
+    } catch (e: any) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post("/api/telegram/vencimentos", async (_req, res) => {
+    try {
+      const text = await buildVencimentosAlert();
+      const result = await sendTelegramMessage(text);
+      if (result.ok) res.json({ ok: true, message: "Alerta de vencimentos enviado com sucesso." });
+      else res.status(500).json({ ok: false, error: result.error });
+    } catch (e: any) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post("/api/telegram/lpco", async (_req, res) => {
+    try {
+      const text = await buildLpcoAlert();
+      const result = await sendTelegramMessage(text);
+      if (result.ok) res.json({ ok: true, message: "Alerta de LPCO enviado com sucesso." });
+      else res.status(500).json({ ok: false, error: result.error });
+    } catch (e: any) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post("/api/telegram/custom", async (req, res) => {
+    try {
+      const { message } = req.body;
+      if (!message) return res.status(400).json({ ok: false, error: "Mensagem obrigatória." });
+      const result = await sendTelegramMessage(message);
+      if (result.ok) res.json({ ok: true, message: "Mensagem enviada com sucesso." });
+      else res.status(500).json({ ok: false, error: result.error });
+    } catch (e: any) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
 
   return httpServer;
 }
