@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { useMutation } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -19,37 +19,16 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
-  BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
-  Legend, ResponsiveContainer,
-} from "recharts";
-import {
   Search, Download, Loader2, BarChart2, TableIcon, Sparkles,
-  Code2, RotateCcw, TrendingUp, PieChartIcon, Mic, MicOff, MicIcon, Info, SlidersHorizontal,
+  Code2, RotateCcw, Mic, MicOff, MicIcon, Info, SlidersHorizontal,
+  Star, Trash2, History, Clock,
 } from "lucide-react";
+import { DynamicChart, chartKindIcon, type ChartKind, type QueryResult, type ChartSuggestion } from "@/components/dynamic-chart";
 import { loadAICalibration } from "@/pages/calibragem-ia";
 import { Link } from "wouter";
-
-const COLORS = ["#1E4D7B", "#2276BB", "#3B82F6", "#0EA5E9", "#64748B", "#7FAFD4", "#1D4ED8", "#94A3B8"];
-
-type ChartKind = "bar" | "line" | "pie" | "kpi" | "table";
-
-interface ChartSuggestion {
-  type: ChartKind;
-  label: string;
-  reason: string;
-}
-
-interface QueryResult {
-  sql: string;
-  rows: Record<string, any>[];
-  columns: string[];
-  chartSuggestions: ChartSuggestion[];
-  chartTitle: string;
-  xAxisKey: string;
-  yAxisKey: string;
-  valueLabel: string;
-}
+import { useToast } from "@/hooks/use-toast";
+import { formatDistanceToNow } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 type VoiceState = "idle" | "listening" | "processing" | "unsupported";
 
@@ -78,132 +57,45 @@ function useVoiceRecognition(onTranscript: (text: string, final: boolean) => voi
     recognition.lang = "pt-BR";
     recognition.interimResults = true;
     recognition.continuous = false;
-    recognition.maxAlternatives = 1;
+
     recognition.onstart = () => setVoiceState("listening");
+    recognition.onerror = () => { stop(); };
+    recognition.onend = () => { setVoiceState("processing"); recognitionRef.current = null; };
     recognition.onresult = (event: any) => {
-      let interim = "", final = "";
+      let final = ""; let interim = "";
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const t = event.results[i][0].transcript;
         if (event.results[i].isFinal) final += t;
         else interim += t;
       }
-      if (final) { onTranscript(final.trim(), true); setVoiceState("processing"); recognitionRef.current = null; }
-      else if (interim) onTranscript(interim, false);
+      onTranscript(final || interim, !!final);
+      if (final) { stop(); return; }
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      timeoutRef.current = setTimeout(stop, 3000);
     };
-    recognition.onerror = () => { setVoiceState("idle"); recognitionRef.current = null; };
-    recognition.onend = () => { recognitionRef.current = null; };
+
     recognitionRef.current = recognition;
     recognition.start();
-    timeoutRef.current = setTimeout(() => {
-      if (recognitionRef.current) { recognitionRef.current.stop(); recognitionRef.current = null; setVoiceState("idle"); }
-    }, 15000);
   }, [stop, onTranscript]);
 
-  useEffect(() => () => stop(), [stop]);
   return { voiceState, setVoiceState, start, stop };
 }
 
-function formatValue(val: any): string {
-  if (val === null || val === undefined) return "—";
-  if (typeof val === "number") return val.toLocaleString("pt-BR");
-  const n = Number(val);
-  if (!isNaN(n) && val !== "" && val !== true && val !== false) return n.toLocaleString("pt-BR");
-  return String(val);
-}
-
 function downloadCSV(columns: string[], rows: Record<string, any>[], title: string) {
-  const header = columns.join(";");
-  const body = rows.map((r) => columns.map((c) => `"${String(r[c] ?? "").replace(/"/g, '""')}"`).join(";")).join("\n");
-  const blob = new Blob(["\uFEFF" + header + "\n" + body], { type: "text/csv;charset=utf-8;" });
+  const header = columns.join(",");
+  const body = rows.map((r) => columns.map((c) => JSON.stringify(r[c] ?? "")).join(",")).join("\n");
+  const blob = new Blob([header + "\n" + body], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${title.toLowerCase().replace(/\s+/g, "_")}.csv`;
-  a.click();
+  const a = document.createElement("a"); a.href = url;
+  a.download = `${title.replace(/\s+/g, "_")}.csv`; a.click();
   URL.revokeObjectURL(url);
 }
 
-function chartKindIcon(type: ChartKind, cls = "h-4 w-4") {
-  if (type === "line") return <TrendingUp className={cls} />;
-  if (type === "pie") return <PieChartIcon className={cls} />;
-  if (type === "kpi") return <Sparkles className={cls} />;
-  if (type === "table") return <TableIcon className={cls} />;
-  return <BarChart2 className={cls} />;
-}
-
-function KPICard({ value, label, title }: { value: any; label: string; title: string }) {
-  const display =
-    typeof value === "number" || (!isNaN(Number(value)) && value !== "")
-      ? Number(value).toLocaleString("pt-BR", { maximumFractionDigits: 2 })
-      : String(value ?? "—");
-  return (
-    <div className="flex flex-col items-center justify-center py-16 gap-3">
-      <p className="text-sm text-muted-foreground font-medium uppercase tracking-wider">{title}</p>
-      <p className="text-6xl font-bold text-primary">{display}</p>
-      {label && <p className="text-base text-muted-foreground">{label}</p>}
-    </div>
-  );
-}
-
-function DynamicChart({
-  rows, chartType, xAxisKey, yAxisKey, valueLabel, chartTitle,
-}: {
-  rows: Record<string, any>[];
-  chartType: ChartKind;
-  xAxisKey: string;
-  yAxisKey: string;
-  valueLabel: string;
-  chartTitle: string;
-}) {
-  const numericRows = rows.map((r) => ({ ...r, [yAxisKey]: Number(r[yAxisKey]) || 0 }));
-
-  if (chartType === "kpi") {
-    const row = rows[0] ?? {};
-    const val = row[yAxisKey] ?? row[Object.keys(row)[0]];
-    return <KPICard value={val} label={valueLabel} title={chartTitle} />;
-  }
-  if (chartType === "pie") {
-    return (
-      <ResponsiveContainer width="100%" height={380}>
-        <PieChart>
-          <Pie data={numericRows} dataKey={yAxisKey} nameKey={xAxisKey} cx="50%" cy="50%" outerRadius={140}
-            label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`} labelLine>
-            {numericRows.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-          </Pie>
-          <RechartsTooltip formatter={(v: any) => [Number(v).toLocaleString("pt-BR"), valueLabel || yAxisKey]} />
-          <Legend />
-        </PieChart>
-      </ResponsiveContainer>
-    );
-  }
-  if (chartType === "line") {
-    return (
-      <ResponsiveContainer width="100%" height={380}>
-        <LineChart data={numericRows} margin={{ top: 10, right: 30, left: 10, bottom: 60 }}>
-          <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-          <XAxis dataKey={xAxisKey} tick={{ fontSize: 11 }} angle={-30} textAnchor="end" interval={0} />
-          <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => Number(v).toLocaleString("pt-BR")} />
-          <RechartsTooltip formatter={(v: any) => [Number(v).toLocaleString("pt-BR"), valueLabel || yAxisKey]} />
-          <Legend />
-          <Line type="monotone" dataKey={yAxisKey} stroke="#2276BB" strokeWidth={2.5} dot={{ r: 4, fill: "#1E4D7B" }} activeDot={{ r: 6, fill: "#2276BB" }} name={valueLabel || yAxisKey} />
-        </LineChart>
-      </ResponsiveContainer>
-    );
-  }
-  return (
-    <ResponsiveContainer width="100%" height={380}>
-      <BarChart data={numericRows} margin={{ top: 10, right: 30, left: 10, bottom: 60 }}>
-        <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-        <XAxis dataKey={xAxisKey} tick={{ fontSize: 11 }} angle={-30} textAnchor="end" interval={0} />
-        <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => Number(v).toLocaleString("pt-BR")} />
-        <RechartsTooltip formatter={(v: any) => [Number(v).toLocaleString("pt-BR"), valueLabel || yAxisKey]} />
-        <Legend />
-        <Bar dataKey={yAxisKey} name={valueLabel || yAxisKey} radius={[4, 4, 0, 0]}>
-          {numericRows.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-        </Bar>
-      </BarChart>
-    </ResponsiveContainer>
-  );
+function formatValue(v: any): string {
+  if (v === null || v === undefined) return "—";
+  if (typeof v === "number") return v.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
+  if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v)) return v.substring(0, 10);
+  return String(v);
 }
 
 function VoiceMicButton({ voiceState, onStart, onStop }: { voiceState: VoiceState; onStart: () => void; onStop: () => void }) {
@@ -234,7 +126,12 @@ function VoiceMicButton({ voiceState, onStart, onStop }: { voiceState: VoiceStat
   );
 }
 
-function ResultPanel({ result, index, total }: { result: QueryResult; index: number; total: number }) {
+function ResultPanel({
+  result, index, total, historyId, favoritado, onFavorite,
+}: {
+  result: QueryResult; index: number; total: number;
+  historyId?: number; favoritado?: boolean; onFavorite?: (favoritado: boolean) => void;
+}) {
   const firstType = result.chartSuggestions?.[0]?.type ?? "bar";
   const [selectedChart, setSelectedChart] = useState<ChartKind>(firstType === "table" ? "bar" : firstType);
   const [showTable, setShowTable] = useState(false);
@@ -254,6 +151,27 @@ function ResultPanel({ result, index, total }: { result: QueryResult; index: num
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {historyId !== undefined && onFavorite && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => onFavorite(!favoritado)}
+                  className={`flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium border transition-all ${
+                    favoritado
+                      ? "bg-amber-50 border-amber-300 text-amber-600 dark:bg-amber-950/30 dark:border-amber-600/40"
+                      : "bg-background border-border text-muted-foreground hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200 dark:hover:bg-amber-950/20"
+                  }`}
+                  data-testid={`button-favorite-result-${index}`}
+                >
+                  <Star className={`h-3.5 w-3.5 ${favoritado ? "fill-amber-400 text-amber-500" : ""}`} />
+                  {favoritado ? "Favoritado" : "Favoritar"}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="text-xs">
+                {favoritado ? "Remover dos favoritos" : "Salvar no Dashboard → Favoritos"}
+              </TooltipContent>
+            </Tooltip>
+          )}
           <Button variant="ghost" size="sm" className="gap-1.5 text-xs" onClick={() => setShowSql((v) => !v)}>
             <Code2 className="h-3.5 w-3.5" />{showSql ? "Ocultar SQL" : "Ver SQL"}
           </Button>
@@ -362,8 +280,11 @@ function ResultPanel({ result, index, total }: { result: QueryResult; index: num
 }
 
 export default function QueryAI() {
+  const { toast } = useToast();
   const [question, setQuestion] = useState("");
   const [results, setResults] = useState<QueryResult[]>([]);
+  const [currentHistoryId, setCurrentHistoryId] = useState<number | undefined>();
+  const [currentFavoritado, setCurrentFavoritado] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
   const pendingAutoSubmit = useRef(false);
@@ -371,6 +292,48 @@ export default function QueryAI() {
   useEffect(() => { textareaRef.current?.focus(); }, []);
 
   const aiCalibration = loadAICalibration();
+
+  const { data: history = [] } = useQuery<any[]>({
+    queryKey: ["/api/query-ai/history"],
+  });
+
+  const saveHistoryMut = useMutation({
+    mutationFn: (data: { question: string; result: any }) =>
+      apiRequest("POST", "/api/query-ai/history", data).then(r => r.json()),
+    onSuccess: (row: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/query-ai/history"] });
+      setCurrentHistoryId(row.id);
+      setCurrentFavoritado(false);
+    },
+  });
+
+  const toggleFavoriteMut = useMutation({
+    mutationFn: ({ id, favoritado }: { id: number; favoritado: boolean }) =>
+      apiRequest("PATCH", `/api/query-ai/history/${id}/favorite`, { favoritado }).then(r => r.json()),
+    onSuccess: (row: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/query-ai/history"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/query-ai/favorites"] });
+      setCurrentFavoritado(row.favoritado);
+      toast({
+        title: row.favoritado ? "⭐ Adicionado aos favoritos!" : "Removido dos favoritos",
+        description: row.favoritado ? "Este gráfico aparecerá na aba Favoritos do Dashboard." : undefined,
+      });
+    },
+  });
+
+  const deleteHistoryMut = useMutation({
+    mutationFn: (id: number) =>
+      apiRequest("DELETE", `/api/query-ai/history/${id}`).then(r => r.json()),
+    onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/query-ai/history"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/query-ai/favorites"] });
+      if (currentHistoryId === id) {
+        setResults([]);
+        setCurrentHistoryId(undefined);
+        setCurrentFavoritado(false);
+      }
+    },
+  });
 
   const mutation = useMutation({
     mutationFn: async (q: string) => {
@@ -381,10 +344,14 @@ export default function QueryAI() {
       });
       return res.json() as Promise<{ results: QueryResult[]; error?: string }>;
     },
-    onSuccess: (data) => {
+    onSuccess: (data, q) => {
       if ((data as any).error) return;
-      setResults(data.results ?? []);
+      const r = data.results ?? [];
+      setResults(r);
       setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+      if (r.length > 0) {
+        saveHistoryMut.mutate({ question: q, result: r });
+      }
     },
   });
 
@@ -414,15 +381,28 @@ export default function QueryAI() {
     if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); handleSubmit(); }
   };
 
+  const restoreHistoryItem = (item: any) => {
+    const r = Array.isArray(item.result) ? item.result : [];
+    setResults(r);
+    setQuestion(item.question);
+    setCurrentHistoryId(item.id);
+    setCurrentFavoritado(item.favoritado ?? false);
+    setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+  };
+
   const errorMsg = (mutation.data as any)?.error ?? (mutation.error as any)?.message;
-  const listeningBanner = voiceState === "listening";
   const hasResults = results.length > 0;
+  const hasHistory = history.length > 0;
+
+  const sortedHistory = [...history].sort((a, b) =>
+    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
 
   return (
     <TooltipProvider>
       <div className="flex flex-col min-h-screen bg-background">
         <div className="border-b bg-card px-6 py-5">
-          <div className="max-w-5xl mx-auto flex items-center gap-3">
+          <div className="max-w-6xl mx-auto flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
               <Sparkles className="h-5 w-5" />
             </div>
@@ -433,11 +413,72 @@ export default function QueryAI() {
           </div>
         </div>
 
-        <div className="flex-1 px-6 py-8">
-          <div className="max-w-5xl mx-auto space-y-6">
+        <div className="flex-1 flex max-w-6xl mx-auto w-full px-6 py-8 gap-6">
+
+          {hasHistory && (
+            <aside className="w-72 shrink-0">
+              <div className="sticky top-8 rounded-xl border bg-card shadow-sm overflow-hidden">
+                <div className="flex items-center gap-2 px-4 py-3 border-b bg-muted/30">
+                  <History className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-semibold">Histórico</span>
+                  <span className="ml-auto text-xs text-muted-foreground">{history.length}</span>
+                </div>
+                <div className="overflow-y-auto max-h-[calc(100vh-220px)]">
+                  {sortedHistory.map((item: any) => {
+                    const isActive = currentHistoryId === item.id;
+                    return (
+                      <div
+                        key={item.id}
+                        className={`group relative cursor-pointer border-b last:border-b-0 px-4 py-3 transition-colors ${
+                          isActive ? "bg-primary/5 border-l-2 border-l-primary" : "hover:bg-muted/40"
+                        }`}
+                        onClick={() => restoreHistoryItem(item)}
+                        data-testid={`history-item-${item.id}`}
+                      >
+                        <p className="text-sm line-clamp-2 leading-snug pr-10">
+                          {item.question}
+                        </p>
+                        <div className="flex items-center gap-1.5 mt-1.5">
+                          <Clock className="h-3 w-3 text-muted-foreground/60" />
+                          <span className="text-[11px] text-muted-foreground">
+                            {formatDistanceToNow(new Date(item.createdAt), { addSuffix: true, locale: ptBR })}
+                          </span>
+                          {item.favoritado && (
+                            <Star className="h-3 w-3 fill-amber-400 text-amber-500 ml-auto" />
+                          )}
+                        </div>
+                        <div className="absolute right-2 top-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            className={`p-1 rounded-md transition-colors ${
+                              item.favoritado ? "text-amber-500 hover:text-amber-600" : "text-muted-foreground hover:text-amber-500"
+                            }`}
+                            onClick={(e) => { e.stopPropagation(); toggleFavoriteMut.mutate({ id: item.id, favoritado: !item.favoritado }); }}
+                            title={item.favoritado ? "Remover dos favoritos" : "Favoritar"}
+                            data-testid={`button-history-favorite-${item.id}`}
+                          >
+                            <Star className={`h-3.5 w-3.5 ${item.favoritado ? "fill-amber-400" : ""}`} />
+                          </button>
+                          <button
+                            className="p-1 rounded-md text-muted-foreground hover:text-destructive transition-colors"
+                            onClick={(e) => { e.stopPropagation(); deleteHistoryMut.mutate(item.id); }}
+                            title="Remover do histórico"
+                            data-testid={`button-history-delete-${item.id}`}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </aside>
+          )}
+
+          <div className="flex-1 min-w-0 space-y-6">
 
             <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
-              {listeningBanner && (
+              {voiceState === "listening" && (
                 <div className="flex items-center gap-2 bg-red-50 border-b border-red-100 px-4 py-2 text-sm text-red-600">
                   <span className="relative flex h-2.5 w-2.5">
                     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
@@ -456,13 +497,14 @@ export default function QueryAI() {
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder={listeningBanner ? "Aguardando transcrição de voz..." : "Ex: Como estão os pagamentos e o faturamento por cliente este ano?"}
+                placeholder={voiceState === "listening" ? "Aguardando transcrição de voz..." : "Ex: Como estão os pagamentos e o faturamento por cliente este ano?"}
                 className="border-0 shadow-none resize-none text-base focus-visible:ring-0 px-4 pb-3 min-h-[80px]"
                 rows={3}
-                readOnly={listeningBanner}
+                readOnly={voiceState === "listening"}
+                data-testid="input-query"
               />
               <div className="flex items-center gap-2 px-4 pb-4">
-                <Button onClick={() => handleSubmit()} disabled={!question.trim() || mutation.isPending} className="gap-2">
+                <Button onClick={() => handleSubmit()} disabled={!question.trim() || mutation.isPending} className="gap-2" data-testid="button-submit-query">
                   {mutation.isPending
                     ? <><Loader2 className="h-4 w-4 animate-spin" /> Analisando...</>
                     : <><Sparkles className="h-4 w-4" /> Consultar</>}
@@ -470,7 +512,7 @@ export default function QueryAI() {
                 <VoiceMicButton voiceState={voiceState} onStart={startVoice} onStop={stopVoice} />
                 {(hasResults || question) && (
                   <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground ml-auto"
-                    onClick={() => { setQuestion(""); setResults([]); mutation.reset(); stopVoice(); }}>
+                    onClick={() => { setQuestion(""); setResults([]); mutation.reset(); stopVoice(); setCurrentHistoryId(undefined); setCurrentFavoritado(false); }}>
                     <RotateCcw className="h-3.5 w-3.5" /> Limpar
                   </Button>
                 )}
@@ -510,7 +552,19 @@ export default function QueryAI() {
                   </div>
                 )}
                 {results.map((r, i) => (
-                  <ResultPanel key={i} result={r} index={i} total={results.length} />
+                  <ResultPanel
+                    key={i}
+                    result={r}
+                    index={i}
+                    total={results.length}
+                    historyId={currentHistoryId}
+                    favoritado={currentFavoritado}
+                    onFavorite={(fav) => {
+                      if (currentHistoryId !== undefined) {
+                        toggleFavoriteMut.mutate({ id: currentHistoryId, favoritado: fav });
+                      }
+                    }}
+                  />
                 ))}
               </div>
             )}

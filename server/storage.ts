@@ -4,7 +4,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import {
   suppliers, clients, clientDocuments, products, quotations, quotationSendLog, quotationNotes, exportOrders, orderAuditLog, platformUsers, shipmentTracking,
-  documentos, documentoAuditLog, lpco, audioProTopicsConfig, audioProCustomTopics, telegramNotificationConfig,
+  documentos, documentoAuditLog, lpco, audioProTopicsConfig, audioProCustomTopics, aiQueryHistory, telegramNotificationConfig,
   type Supplier, type InsertSupplier,
   type Client, type InsertClient,
   type ClientDocument, type InsertClientDocument,
@@ -20,6 +20,7 @@ import {
   type Lpco, type InsertLpco,
   type AudioProTopicsConfig,
   type AudioProCustomTopic, type InsertAudioProCustomTopic,
+  type AiQueryHistory,
   type TelegramConfig,
 } from "@shared/schema";
 
@@ -94,6 +95,12 @@ export interface IStorage {
   createLpco(data: InsertLpco): Promise<Lpco>;
   updateLpco(id: number, data: Partial<InsertLpco>): Promise<Lpco | undefined>;
   deleteLpco(id: number): Promise<void>;
+
+  getAiQueryHistory(): Promise<AiQueryHistory[]>;
+  saveAiQueryHistory(data: { question: string; result: any }): Promise<AiQueryHistory>;
+  toggleAiQueryFavorite(id: number, favoritado: boolean, tituloFavorito?: string | null): Promise<AiQueryHistory | undefined>;
+  deleteAiQueryHistory(id: number): Promise<void>;
+  getAiQueryFavorites(): Promise<AiQueryHistory[]>;
 
   getAudioProTopicsConfig(): Promise<AudioProTopicsConfig>;
   saveAudioProTopicsConfig(data: Partial<Omit<AudioProTopicsConfig, "id" | "updatedAt">>): Promise<AudioProTopicsConfig>;
@@ -772,6 +779,30 @@ export class DatabaseStorage implements IStorage {
 
   async deleteLpco(id: number): Promise<void> {
     await db.delete(lpco).where(eq(lpco.id, id));
+  }
+
+  async getAiQueryHistory(): Promise<AiQueryHistory[]> {
+    return db.select().from(aiQueryHistory).orderBy(aiQueryHistory.createdAt);
+  }
+
+  async saveAiQueryHistory(data: { question: string; result: any }): Promise<AiQueryHistory> {
+    const [row] = await db.insert(aiQueryHistory).values({ question: data.question, result: data.result }).returning();
+    return row;
+  }
+
+  async toggleAiQueryFavorite(id: number, favoritado: boolean, tituloFavorito?: string | null): Promise<AiQueryHistory | undefined> {
+    const updateData: any = { favoritado };
+    if (tituloFavorito !== undefined) updateData.tituloFavorito = tituloFavorito;
+    const [row] = await db.update(aiQueryHistory).set(updateData).where(eq(aiQueryHistory.id, id)).returning();
+    return row;
+  }
+
+  async deleteAiQueryHistory(id: number): Promise<void> {
+    await db.delete(aiQueryHistory).where(eq(aiQueryHistory.id, id));
+  }
+
+  async getAiQueryFavorites(): Promise<AiQueryHistory[]> {
+    return db.select().from(aiQueryHistory).where(eq(aiQueryHistory.favoritado, true)).orderBy(aiQueryHistory.createdAt);
   }
 
   async getAudioProTopicsConfig(): Promise<AudioProTopicsConfig> {

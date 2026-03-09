@@ -299,6 +299,17 @@ export const audioProTopicsConfig = pgTable("audio_pro_topics_config", {
 
 export type AudioProTopicsConfig = typeof audioProTopicsConfig.$inferSelect;
 
+// ─── AI Query History ─────────────────────────────────────────────────────────
+export const aiQueryHistory = pgTable("ai_query_history", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  question: text("question").notNull(),
+  result: jsonb("result").notNull(),
+  favoritado: boolean("favoritado").notNull().default(false),
+  tituloFavorito: text("titulo_favorito"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type AiQueryHistory = typeof aiQueryHistory.$inferSelect;
+
 // ─── Audio PRO Custom Topics ───────────────────────────────────────────────────
 export const audioProCustomTopics = pgTable("audio_pro_custom_topics", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),

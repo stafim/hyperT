@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +12,10 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { DollarSign, Package, FileText, TrendingUp, Globe, Truck, Ship, ShieldCheck, BarChart3, CalendarDays, Landmark, Settings2, Layers, Navigation, ShoppingCart, Target, Percent, Wallet, Send, CheckCircle2, AlertCircle, Loader2, CalendarClock, ZoomIn, X, ArrowLeft, Mic, Sparkles } from "lucide-react";
+import { DollarSign, Package, FileText, TrendingUp, Globe, Truck, Ship, ShieldCheck, BarChart3, CalendarDays, Landmark, Settings2, Layers, Navigation, ShoppingCart, Target, Percent, Wallet, Send, CheckCircle2, AlertCircle, Loader2, CalendarClock, ZoomIn, X, ArrowLeft, Mic, Sparkles, Star } from "lucide-react";
+import { DynamicChart, chartKindIcon } from "@/components/dynamic-chart";
+import { formatDistanceToNow } from "date-fns";
+import { ptBR as ptBRLocale } from "date-fns/locale";
 import { SiTelegram } from "react-icons/si";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -986,7 +990,7 @@ function DrillDownDialog({
   );
 }
 
-type SectionFilter = "all" | "financeiro" | "operacional" | "diversos" | "cotacoes-vendas";
+type SectionFilter = "all" | "financeiro" | "operacional" | "diversos" | "cotacoes-vendas" | "favorito";
 
 const SECTION_LABELS: { value: SectionFilter; label: string }[] = [
   { value: "all", label: "Todos" },
@@ -994,6 +998,7 @@ const SECTION_LABELS: { value: SectionFilter; label: string }[] = [
   { value: "operacional", label: "Operacional" },
   { value: "diversos", label: "Diversos" },
   { value: "cotacoes-vendas", label: "Cotações/Vendas" },
+  { value: "favorito", label: "⭐ Favoritos" },
 ];
 
 export default function Dashboard() {
@@ -1002,6 +1007,18 @@ export default function Dashboard() {
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
   const [drillDown, setDrillDown] = useState<DrillDownState>(null);
+
+  const { data: favoritos = [], isLoading: favoritosLoading } = useQuery<any[]>({
+    queryKey: ["/api/query-ai/favorites"],
+  });
+  const removeFavoriteMut = useMutation({
+    mutationFn: (id: number) =>
+      apiRequest("PATCH", `/api/query-ai/history/${id}/favorite`, { favoritado: false }).then(r => r.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/query-ai/favorites"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/query-ai/history"] });
+    },
+  });
 
   const dateRange = useMemo(() => {
     if (selectedPeriod === "custom") {
@@ -2229,6 +2246,90 @@ export default function Dashboard() {
         </Card>
       )}
       </>}
+
+      {selectedSection === "favorito" && (
+        <div data-testid="section-favorito" className="space-y-6 pt-2">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold flex items-center gap-2">
+                <Star className="h-5 w-5 fill-amber-400 text-amber-500" />
+                Gráficos Favoritos
+              </h2>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                Consultas favoritas da Consulta Inteligente. Favorite um gráfico lá para ele aparecer aqui.
+              </p>
+            </div>
+            {favoritos.length > 0 && (
+              <Badge variant="outline" className="text-xs">{favoritos.length} favorito{favoritos.length !== 1 ? "s" : ""}</Badge>
+            )}
+          </div>
+
+          {favoritosLoading ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {[1,2].map(i => <Skeleton key={i} className="h-80 w-full rounded-xl" />)}
+            </div>
+          ) : favoritos.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
+                <Star className="h-12 w-12 opacity-20" />
+                <p className="text-base font-medium">Nenhum favorito ainda</p>
+                <p className="text-sm text-center max-w-sm">
+                  Acesse a <strong>Consulta Inteligente</strong>, faça uma pergunta e clique em <strong>"Favoritar"</strong> no resultado para ele aparecer aqui.
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {favoritos.map((fav: any) => {
+                const results: any[] = Array.isArray(fav.result) ? fav.result : [];
+                return results.map((result: any, idx: number) => (
+                  <Card key={`${fav.id}-${idx}`} className="overflow-hidden" data-testid={`fav-card-${fav.id}-${idx}`}>
+                    <CardHeader className="pb-3 border-b">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                            {chartKindIcon(result.chartSuggestions?.[0]?.type ?? "bar", "h-4 w-4 shrink-0 text-primary")}
+                            <span className="truncate">{result.chartTitle}</span>
+                          </CardTitle>
+                          <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{fav.question}</p>
+                          <p className="text-[11px] text-muted-foreground/70 mt-0.5">
+                            {formatDistanceToNow(new Date(fav.createdAt), { addSuffix: true, locale: ptBRLocale })}
+                            {" · "}{result.rows?.length ?? 0} registro{(result.rows?.length ?? 0) !== 1 ? "s" : ""}
+                          </p>
+                        </div>
+                        <button
+                          className="shrink-0 p-1.5 rounded-lg text-amber-500 hover:text-muted-foreground hover:bg-muted/50 transition-colors"
+                          onClick={() => removeFavoriteMut.mutate(fav.id)}
+                          title="Remover dos favoritos"
+                          data-testid={`button-remove-fav-${fav.id}`}
+                        >
+                          <Star className="h-4 w-4 fill-amber-400" />
+                        </button>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="pt-4">
+                      {result.rows?.length > 0 ? (
+                        <DynamicChart
+                          rows={result.rows}
+                          chartType={result.chartSuggestions?.[0]?.type ?? "bar"}
+                          xAxisKey={result.xAxisKey ?? ""}
+                          yAxisKey={result.yAxisKey ?? ""}
+                          valueLabel={result.valueLabel ?? ""}
+                          chartTitle={result.chartTitle ?? ""}
+                        />
+                      ) : (
+                        <div className="flex items-center justify-center h-32 text-muted-foreground text-sm">
+                          Sem dados disponíveis
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                ));
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       <DrillDownDialog
         state={drillDown}

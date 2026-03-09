@@ -940,6 +940,41 @@ Seja preciso com números, use os dados fornecidos e seja direto nas recomendaç
     }
   });
 
+  app.get("/api/query-ai/history", async (_req, res) => {
+    try { res.json(await storage.getAiQueryHistory()); }
+    catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.post("/api/query-ai/history", async (req, res) => {
+    try {
+      const { question, result } = req.body;
+      if (!question || !result) return res.status(400).json({ error: "question e result são obrigatórios." });
+      res.json(await storage.saveAiQueryHistory({ question, result }));
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.patch("/api/query-ai/history/:id/favorite", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { favoritado, tituloFavorito } = req.body;
+      const row = await storage.toggleAiQueryFavorite(id, favoritado, tituloFavorito);
+      if (!row) return res.status(404).json({ error: "Consulta não encontrada." });
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.delete("/api/query-ai/history/:id", async (req, res) => {
+    try {
+      await storage.deleteAiQueryHistory(parseInt(req.params.id));
+      res.json({ ok: true });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.get("/api/query-ai/favorites", async (_req, res) => {
+    try { res.json(await storage.getAiQueryFavorites()); }
+    catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
   app.post("/api/query-ai", async (req, res) => {
     try {
       const { question, businessContext, temperature } = req.body;
