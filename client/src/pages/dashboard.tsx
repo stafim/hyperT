@@ -295,7 +295,7 @@ function TelegramPanel() {
 // ─── Drill-Down ───────────────────────────────────────────────────────────────
 
 type DrillDownState = {
-  type: "country" | "client" | "month" | "product";
+  type: "country" | "client" | "month" | "product" | "vesselStatus" | "paymentStatus" | "modal" | "parametrizacao";
   value: string;
 } | null;
 
@@ -330,6 +330,10 @@ function DrillDownDialog({
     else if (type === "client") filtered = orders.filter(o => o.client?.name === value);
     else if (type === "month") filtered = orders.filter(o => getMonthLabel(o.createdAt?.toString()) === value);
     else if (type === "product") filtered = orders.filter(o => o.product?.type === value);
+    else if (type === "vesselStatus") filtered = orders.filter(o => (o.vesselStatus ?? "Sem Status") === value);
+    else if (type === "paymentStatus") filtered = orders.filter(o => o.statusPagamento?.toLowerCase() === value.toLowerCase());
+    else if (type === "modal") filtered = orders.filter(o => o.modal?.toLowerCase() === value.toLowerCase());
+    else if (type === "parametrizacao") filtered = orders.filter(o => o.parametrizacao?.toLowerCase() === value.toLowerCase());
 
     const total = filtered.reduce((s, o) => s + Number(o.total ?? 0), 0);
     const count = filtered.length;
@@ -407,6 +411,8 @@ function DrillDownDialog({
 
   const typeLabels: Record<string, string> = {
     country: "País", client: "Cliente", month: "Mês", product: "Produto",
+    vesselStatus: "Movimentação", paymentStatus: "Status de Pagamento",
+    modal: "Modal", parametrizacao: "Parametrização",
   };
 
   return (
@@ -597,6 +603,96 @@ function DrillDownDialog({
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* vesselStatus / paymentStatus / parametrizacao sub-charts */}
+          {(state.type === "vesselStatus" || state.type === "paymentStatus" || state.type === "parametrizacao") && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {data.byClient.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Por Cliente</p>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart data={data.byClient} layout="vertical" margin={{ top: 2, right: 16, left: 8, bottom: 2 }}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
+                      <XAxis type="number" tick={{ fontSize: 10 }} className="fill-muted-foreground" tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
+                      <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} className="fill-muted-foreground" width={90} />
+                      <Tooltip formatter={(v: number) => [fmt(v), "Faturamento"]} contentStyle={TOOLTIP_STYLE} />
+                      <Bar dataKey="total" radius={[0, 4, 4, 0]}>
+                        {data.byClient.map((_, i) => <Cell key={i} fill={["#2276BB","#1a5e94","#1E4D7B","#3b82f6","#60a5fa","#93c5fd","#2563eb","#1d4ed8"][i % 8]} />)}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+              {data.byMonth.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Evolução Mensal</p>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <AreaChart data={data.byMonth} margin={{ top: 4, right: 16, left: 8, bottom: 2 }}>
+                      <defs>
+                        <linearGradient id="ddGradV" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#2276BB" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#2276BB" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                      <XAxis dataKey="month" tick={{ fontSize: 10 }} tickFormatter={v => v.split("/")[0]} className="fill-muted-foreground" />
+                      <YAxis tick={{ fontSize: 10 }} className="fill-muted-foreground" tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
+                      <Tooltip formatter={(v: number) => [fmt(v), "Faturamento"]} contentStyle={TOOLTIP_STYLE} />
+                      <Area type="monotone" dataKey="total" stroke="#2276BB" strokeWidth={2} fill="url(#ddGradV)" dot={{ r: 3, fill: "#2276BB", strokeWidth: 0 }} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* modal sub-charts */}
+          {state.type === "modal" && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {data.byCountry.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Por País</p>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart data={data.byCountry} margin={{ top: 2, right: 16, left: 8, bottom: 2 }}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                      <XAxis dataKey="country" tick={{ fontSize: 10 }} className="fill-muted-foreground" />
+                      <YAxis tick={{ fontSize: 10 }} className="fill-muted-foreground" tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
+                      <Tooltip formatter={(v: number) => [fmt(v), "Faturamento"]} contentStyle={TOOLTIP_STYLE} />
+                      <Bar dataKey="total" radius={[4, 4, 0, 0]}>
+                        {data.byCountry.map((_, i) => <Cell key={i} fill={["#2276BB","#1a5e94","#3b82f6","#60a5fa","#93c5fd","#1E4D7B","#2563eb","#1d4ed8"][i % 8]} />)}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+              {data.byProduct.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Por Produto</p>
+                  <div className="flex items-center gap-2">
+                    <ResponsiveContainer width="55%" height={200}>
+                      <PieChart>
+                        <Pie data={data.byProduct} dataKey="total" nameKey="name" cx="50%" cy="50%" innerRadius={40} outerRadius={70} paddingAngle={3}>
+                          {data.byProduct.map((_, i) => <Cell key={i} fill={["#2276BB","#1a5e94","#3b82f6","#60a5fa","#93c5fd"][i % 5]} />)}
+                        </Pie>
+                        <Tooltip formatter={(v: number) => [fmt(v), "Faturamento"]} contentStyle={TOOLTIP_STYLE} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="flex flex-col gap-2 w-[45%]">
+                      {data.byProduct.map((p, i) => (
+                        <div key={p.name} className="flex items-center gap-2">
+                          <div className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: ["#2276BB","#1a5e94","#3b82f6","#60a5fa","#93c5fd"][i % 5] }} />
+                          <div className="min-w-0">
+                            <p className="text-xs font-medium truncate">{p.name}</p>
+                            <p className="text-xs text-muted-foreground">{fmt(p.total)}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -911,6 +1007,9 @@ export default function Dashboard() {
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <Navigation className="h-4 w-4 text-muted-foreground" />
               Status de Movimentação
+              <span className="ml-auto flex items-center gap-1 text-[10px] text-muted-foreground font-normal">
+                <ZoomIn className="h-3 w-3" /> clique p/ detalhar
+              </span>
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -927,6 +1026,8 @@ export default function Dashboard() {
                       paddingAngle={4}
                       dataKey="count"
                       nameKey="status"
+                      cursor="pointer"
+                      onClick={(d: any) => setDrillDown({ type: "vesselStatus", value: d.status })}
                     >
                       {stats.vesselStatusDistribution.filter(d => d.status !== "Sem Status").map((entry) => (
                         <Cell key={entry.status} fill={VESSEL_STATUS_COLORS[entry.status] || "#94A3B8"} />
@@ -940,7 +1041,11 @@ export default function Dashboard() {
                 </ResponsiveContainer>
                 <div className="flex flex-col gap-3 w-[40%]">
                   {stats.vesselStatusDistribution.map((item) => (
-                    <div key={item.status} className="flex items-center gap-2">
+                    <div
+                      key={item.status}
+                      className="flex items-center gap-2 cursor-pointer hover:opacity-70 transition-opacity"
+                      onClick={() => setDrillDown({ type: "vesselStatus", value: item.status })}
+                    >
                       <div className="h-3 w-3 rounded-sm flex-shrink-0" style={{ backgroundColor: VESSEL_STATUS_COLORS[item.status] || "#94A3B8" }} />
                       <div className="min-w-0">
                         <p className="text-xs font-medium leading-none">{item.status}</p>
@@ -965,6 +1070,9 @@ export default function Dashboard() {
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <Ship className="h-4 w-4 text-muted-foreground" />
               Faturamento por Movimentação
+              <span className="ml-auto flex items-center gap-1 text-[10px] text-muted-foreground font-normal">
+                <ZoomIn className="h-3 w-3" /> clique p/ detalhar
+              </span>
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -982,7 +1090,12 @@ export default function Dashboard() {
                     formatter={(value: number) => [formatCurrency(value), "Valor Total"]}
                     contentStyle={{ borderRadius: "6px", border: "1px solid hsl(var(--border))", backgroundColor: "hsl(var(--popover))", color: "hsl(var(--popover-foreground))" }}
                   />
-                  <Bar dataKey="total" radius={[0, 4, 4, 0]}>
+                  <Bar
+                    dataKey="total"
+                    radius={[0, 4, 4, 0]}
+                    cursor="pointer"
+                    onClick={(d: any) => setDrillDown({ type: "vesselStatus", value: d.status })}
+                  >
                     {stats.vesselStatusDistribution.filter(d => d.status !== "Sem Status").map((entry) => (
                       <Cell key={entry.status} fill={VESSEL_STATUS_COLORS[entry.status] || "#94A3B8"} />
                     ))}
@@ -1087,12 +1200,20 @@ export default function Dashboard() {
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <DollarSign className="h-4 w-4 text-muted-foreground" />
               Faturamento Mensal por Status
+              <span className="ml-auto flex items-center gap-1 text-[10px] text-muted-foreground font-normal">
+                <ZoomIn className="h-3 w-3" /> clique p/ detalhar
+              </span>
             </CardTitle>
           </CardHeader>
           <CardContent>
             {stats?.monthlyRevenueByStatus && stats.monthlyRevenueByStatus.length > 0 ? (
               <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={stats.monthlyRevenueByStatus} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                <BarChart
+                  data={stats.monthlyRevenueByStatus}
+                  margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
+                  onClick={(d: any) => { if (d?.activeLabel) setDrillDown({ type: "month", value: d.activeLabel }); }}
+                  style={{ cursor: "pointer" }}
+                >
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                   <XAxis dataKey="month" tick={{ fontSize: 12 }} className="fill-muted-foreground" />
                   <YAxis tick={{ fontSize: 12 }} className="fill-muted-foreground" tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
@@ -1252,6 +1373,9 @@ export default function Dashboard() {
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <FileText className="h-4 w-4 text-muted-foreground" />
               Status de Pagamento
+              <span className="ml-auto flex items-center gap-1 text-[10px] text-muted-foreground font-normal">
+                <ZoomIn className="h-3 w-3" /> clique p/ detalhar
+              </span>
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -1268,6 +1392,8 @@ export default function Dashboard() {
                       paddingAngle={4}
                       dataKey="count"
                       nameKey="status"
+                      cursor="pointer"
+                      onClick={(d: any) => setDrillDown({ type: "paymentStatus", value: d.status })}
                     >
                       {stats.paymentStatusDistribution.map((entry) => (
                         <Cell key={entry.status} fill={PAYMENT_COLORS[entry.status] || COLORS[0]} />
@@ -1278,7 +1404,11 @@ export default function Dashboard() {
                 </ResponsiveContainer>
                 <div className="flex flex-col gap-2 w-[40%]">
                   {stats.paymentStatusDistribution.map((item) => (
-                    <div key={item.status} className="flex items-center gap-2">
+                    <div
+                      key={item.status}
+                      className="flex items-center gap-2 cursor-pointer hover:opacity-70 transition-opacity"
+                      onClick={() => setDrillDown({ type: "paymentStatus", value: item.status })}
+                    >
                       <div className="h-3 w-3 rounded-sm flex-shrink-0" style={{ backgroundColor: PAYMENT_COLORS[item.status] || COLORS[0] }} />
                       <span className="text-xs text-muted-foreground">{item.status} ({item.count})</span>
                     </div>
@@ -1297,12 +1427,20 @@ export default function Dashboard() {
           <CardTitle className="text-sm font-medium flex items-center gap-2">
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
             Projeção de Recebíveis (Cash Flow)
+            <span className="ml-auto flex items-center gap-1 text-[10px] text-muted-foreground font-normal">
+              <ZoomIn className="h-3 w-3" /> clique p/ detalhar
+            </span>
           </CardTitle>
         </CardHeader>
         <CardContent>
           {stats?.cashFlow && stats.cashFlow.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={stats.cashFlow} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+              <LineChart
+                data={stats.cashFlow}
+                margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
+                onClick={(d: any) => { if (d?.activeLabel) setDrillDown({ type: "month", value: d.activeLabel }); }}
+                style={{ cursor: "pointer" }}
+              >
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                 <XAxis dataKey="month" tick={{ fontSize: 12 }} className="fill-muted-foreground" />
                 <YAxis tick={{ fontSize: 12 }} className="fill-muted-foreground" tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
@@ -1311,7 +1449,7 @@ export default function Dashboard() {
                   contentStyle={{ borderRadius: "6px", border: "1px solid hsl(var(--border))", backgroundColor: "hsl(var(--popover))", color: "hsl(var(--popover-foreground))" }}
                 />
                 <Legend />
-                <Line type="monotone" dataKey="amount" stroke="#2276BB" strokeWidth={2} dot={{ r: 4, fill: "#1E4D7B" }} name="Recebíveis" />
+                <Line type="monotone" dataKey="amount" stroke="#2276BB" strokeWidth={2} dot={{ r: 4, fill: "#1E4D7B" }} name="Recebíveis" activeDot={{ r: 6, style: { cursor: "pointer" } }} />
               </LineChart>
             </ResponsiveContainer>
           ) : (
@@ -1356,6 +1494,9 @@ export default function Dashboard() {
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <BarChart3 className="h-4 w-4 text-muted-foreground" />
               Volume por País (ton)
+              <span className="ml-auto flex items-center gap-1 text-[10px] text-muted-foreground font-normal">
+                <ZoomIn className="h-3 w-3" /> clique p/ detalhar
+              </span>
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -1369,7 +1510,13 @@ export default function Dashboard() {
                     formatter={(value: number) => [`${value.toLocaleString("pt-BR")} ton`, "Volume"]}
                     contentStyle={{ borderRadius: "6px", border: "1px solid hsl(var(--border))", backgroundColor: "hsl(var(--popover))", color: "hsl(var(--popover-foreground))" }}
                   />
-                  <Bar dataKey="volume" fill="#2276BB" radius={[4, 4, 0, 0]} />
+                  <Bar
+                    dataKey="volume"
+                    fill="#2276BB"
+                    radius={[4, 4, 0, 0]}
+                    cursor="pointer"
+                    onClick={(d: any) => setDrillDown({ type: "country", value: d.country })}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -1383,12 +1530,20 @@ export default function Dashboard() {
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
               Pedidos por Mês
+              <span className="ml-auto flex items-center gap-1 text-[10px] text-muted-foreground font-normal">
+                <ZoomIn className="h-3 w-3" /> clique p/ detalhar
+              </span>
             </CardTitle>
           </CardHeader>
           <CardContent>
             {stats?.monthlyOrders && stats.monthlyOrders.length > 0 ? (
               <ResponsiveContainer width="100%" height={280}>
-                <AreaChart data={stats.monthlyOrders} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                <AreaChart
+                  data={stats.monthlyOrders}
+                  margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
+                  onClick={(d: any) => { if (d?.activeLabel) setDrillDown({ type: "month", value: d.activeLabel }); }}
+                  style={{ cursor: "pointer" }}
+                >
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                   <XAxis dataKey="month" tick={{ fontSize: 12 }} className="fill-muted-foreground" />
                   <YAxis yAxisId="left" tick={{ fontSize: 12 }} className="fill-muted-foreground" />
@@ -1418,6 +1573,9 @@ export default function Dashboard() {
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <Truck className="h-4 w-4 text-muted-foreground" />
               Modal de Transporte
+              <span className="ml-auto flex items-center gap-1 text-[10px] text-muted-foreground font-normal">
+                <ZoomIn className="h-3 w-3" /> clique p/ detalhar
+              </span>
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -1434,6 +1592,8 @@ export default function Dashboard() {
                       paddingAngle={4}
                       dataKey="count"
                       nameKey="modal"
+                      cursor="pointer"
+                      onClick={(d: any) => setDrillDown({ type: "modal", value: d.modal })}
                     >
                       {stats.modalDistribution.map((_, index) => (
                         <Cell key={`modal-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -1444,7 +1604,11 @@ export default function Dashboard() {
                 </ResponsiveContainer>
                 <div className="flex flex-col gap-2 w-[40%]">
                   {stats.modalDistribution.map((item, i) => (
-                    <div key={item.modal} className="flex items-center gap-2">
+                    <div
+                      key={item.modal}
+                      className="flex items-center gap-2 cursor-pointer hover:opacity-70 transition-opacity"
+                      onClick={() => setDrillDown({ type: "modal", value: item.modal })}
+                    >
                       <div className="h-3 w-3 rounded-sm flex-shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
                       <span className="text-xs text-muted-foreground">{item.modal} ({item.count})</span>
                     </div>
@@ -1462,6 +1626,9 @@ export default function Dashboard() {
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <ShieldCheck className="h-4 w-4 text-muted-foreground" />
               Parametrização
+              <span className="ml-auto flex items-center gap-1 text-[10px] text-muted-foreground font-normal">
+                <ZoomIn className="h-3 w-3" /> clique p/ detalhar
+              </span>
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -1478,6 +1645,8 @@ export default function Dashboard() {
                       paddingAngle={4}
                       dataKey="count"
                       nameKey="status"
+                      cursor="pointer"
+                      onClick={(d: any) => setDrillDown({ type: "parametrizacao", value: d.status })}
                     >
                       {stats.parametrizacaoDistribution.map((entry) => (
                         <Cell key={entry.status} fill={PARAM_COLORS[entry.status] || COLORS[0]} />
@@ -1488,7 +1657,11 @@ export default function Dashboard() {
                 </ResponsiveContainer>
                 <div className="flex flex-col gap-2 w-[40%]">
                   {stats.parametrizacaoDistribution.map((item) => (
-                    <div key={item.status} className="flex items-center gap-2">
+                    <div
+                      key={item.status}
+                      className="flex items-center gap-2 cursor-pointer hover:opacity-70 transition-opacity"
+                      onClick={() => setDrillDown({ type: "parametrizacao", value: item.status })}
+                    >
                       <div className="h-3 w-3 rounded-sm flex-shrink-0" style={{ backgroundColor: PARAM_COLORS[item.status] || COLORS[0] }} />
                       <span className="text-xs text-muted-foreground">{item.status} ({item.count})</span>
                     </div>
@@ -1516,6 +1689,9 @@ export default function Dashboard() {
           <CardTitle className="text-sm font-medium flex items-center gap-2">
             <Package className="h-4 w-4 text-muted-foreground" />
             Mix de Produtos
+            <span className="ml-auto flex items-center gap-1 text-[10px] text-muted-foreground font-normal">
+              <ZoomIn className="h-3 w-3" /> clique p/ detalhar
+            </span>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -1532,6 +1708,8 @@ export default function Dashboard() {
                     paddingAngle={4}
                     dataKey="count"
                     nameKey="type"
+                    cursor="pointer"
+                    onClick={(d: any) => setDrillDown({ type: "product", value: d.type })}
                   >
                     {stats.productMix.map((_, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -1544,7 +1722,11 @@ export default function Dashboard() {
               </ResponsiveContainer>
               <div className="flex flex-col gap-2 w-[40%]">
                 {stats.productMix.map((item, i) => (
-                  <div key={item.type} className="flex items-center gap-2">
+                  <div
+                    key={item.type}
+                    className="flex items-center gap-2 cursor-pointer hover:opacity-70 transition-opacity"
+                    onClick={() => setDrillDown({ type: "product", value: item.type })}
+                  >
                     <div className="h-3 w-3 rounded-sm flex-shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
                     <span className="text-xs text-muted-foreground truncate">{item.type}</span>
                   </div>
