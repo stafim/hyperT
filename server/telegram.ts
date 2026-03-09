@@ -321,23 +321,29 @@ export async function buildAudioSummaryText(): Promise<string> {
   }
 
   const parts: string[] = [];
-  parts.push(`Bom dia! Aqui está o resumo das operações da Hypertrade, gerado em ${format(now, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}.`);
-  parts.push("");
-  parts.push(`Visão geral das ordens de exportação: o faturamento total acumulado é de ${fmtSpeech(totalRevenue)}, sendo ${fmtSpeech(totalPago)} já recebido, ${fmtSpeech(totalPendente)} pendente de pagamento${overdueCount > 0 ? ` e ${fmtSpeech(totalAtrasado)} em atraso, com ${overdueCount} fatura${overdueCount > 1 ? "s" : ""} vencida${overdueCount > 1 ? "s" : ""}` : ""}.`);
-  parts.push("");
-  parts.push(`Em relação ao pipeline de cotações: há ${pipelineQuotes.length} cotação${pipelineQuotes.length !== 1 ? "ões" : ""} ativa${pipelineQuotes.length !== 1 ? "s" : ""} com valor total de ${fmtSpeech(pipelineValue)}, e a taxa de conversão está em ${convRate} por cento.`);
 
+  // Saudação
+  parts.push(`Bom dia, Valdinei! Aqui está o seu resumo de operações da Hypertrade, gerado em ${format(now, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}.`);
+
+  // 1. Cotações
+  parts.push("");
+  parts.push(`Começando pelas cotações: há atualmente ${pipelineQuotes.length} cotação${pipelineQuotes.length !== 1 ? "ões" : ""} ativa${pipelineQuotes.length !== 1 ? "s" : ""} no pipeline, com valor total de ${fmtSpeech(pipelineValue)}. A taxa de conversão está em ${convRate} por cento.`);
+
+  // 2. Vendas (movimentação dia a dia)
+  parts.push("");
   if (dailyLines.length > 0) {
-    parts.push("");
-    parts.push("Movimentação dos últimos sete dias:");
+    parts.push("Em relação às vendas, veja a movimentação dos últimos sete dias:");
     dailyLines.forEach(l => parts.push(l));
   } else {
-    parts.push("");
-    parts.push("Não houve movimentação registrada nos últimos sete dias.");
+    parts.push("Não houve ordens de venda registradas nos últimos sete dias.");
   }
 
+  // 3. Faturamento geral
   parts.push("");
-  parts.push("Este foi o resumo de hoje. Boas negociações!");
+  parts.push(`Por fim, o faturamento acumulado total é de ${fmtSpeech(totalRevenue)}: sendo ${fmtSpeech(totalPago)} já recebido e ${fmtSpeech(totalPendente)} pendente de pagamento${overdueCount > 0 ? `. Atenção: há ${fmtSpeech(totalAtrasado)} em atraso, referente a ${overdueCount} fatura${overdueCount > 1 ? "s" : ""} vencida${overdueCount > 1 ? "s" : ""}` : ""}.`);
+
+  parts.push("");
+  parts.push("Este foi o seu resumo de hoje, Valdinei. Boas negociações!");
 
   return parts.join(" ");
 }
