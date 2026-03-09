@@ -18,7 +18,7 @@ client/src/
     dashboard.tsx    - KPI dashboard with 8 charts
     calibragem-ia.tsx - AI calibration settings (business context, temperature, example questions) stored in localStorage
     orders.tsx       - Export orders management (CRUD, paginated 50/page, server-side filtering)
-    clients.tsx      - Client management (CRUD, table format)
+    clients.tsx      - Client management (CRUD, table with detailed profile dialog: tabs for Perfil/Documentos/Histórico)
     suppliers.tsx    - Supplier management (CRUD, table format)
     products.tsx     - Product management (CRUD, with supplier link)
     quotations.tsx   - Business quotations (CRUD, send via Email/WhatsApp, convert to order)
@@ -44,7 +44,8 @@ shared/
 ## Database Schema
 - **platform_users**: name, email, role (admin/operador/visualizador), status (ativo/inativo), phone, department
 - **suppliers**: name, cnpj, contact, phone, email, city, state
-- **clients**: name, country, creditLimit, paymentTerms
+- **clients**: name, country, creditLimit, paymentTerms, email, phone, responsavel, registroNacional (CUIT/RUC/RUT), address, city, state, zipCode, notes
+- **client_documents**: clientId (FK), nome, tipo (contrato/licença/certificado/procuração/registro/outro), numero, emissao (date), validade (date), observacoes, createdAt
 - **products**: type, grammage, standardPrice, supplierId (FK to suppliers)
 - **quotations**: clientId, productId, supplierId, unitPrice, quantity, total, paymentTerms, validityDate, notes, status (rascunho/enviada/aceita/recusada/convertida)
 - **quotation_send_log**: quotationId, method (email/whatsapp), userName, recipientInfo, sentAt

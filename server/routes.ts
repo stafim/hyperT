@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertClientSchema, insertProductSchema, insertSupplierSchema, insertQuotationSchema, insertPlatformUserSchema, insertShipmentTrackingSchema } from "@shared/schema";
+import { insertClientSchema, insertClientDocumentSchema, insertProductSchema, insertSupplierSchema, insertQuotationSchema, insertPlatformUserSchema, insertShipmentTrackingSchema } from "@shared/schema";
 import OpenAI from "openai";
 import { registerPortalRoutes } from "./portal-routes";
 import multer from "multer";
@@ -100,6 +100,34 @@ export async function registerRoutes(
 
   app.delete("/api/clients/:id", async (req, res) => {
     await storage.deleteClient(Number(req.params.id));
+    res.status(204).end();
+  });
+
+  app.get("/api/clients/:id/orders", async (req, res) => {
+    const id = Number(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ message: "ID inválido" });
+    const orders = await storage.getOrdersByClient(id);
+    res.json(orders);
+  });
+
+  app.get("/api/clients/:id/documents", async (req, res) => {
+    const id = Number(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ message: "ID inválido" });
+    const docs = await storage.getClientDocuments(id);
+    res.json(docs);
+  });
+
+  app.post("/api/clients/:id/documents", async (req, res) => {
+    const clientId = Number(req.params.id);
+    if (isNaN(clientId)) return res.status(400).json({ message: "ID inválido" });
+    const result = insertClientDocumentSchema.safeParse({ ...req.body, clientId });
+    if (!result.success) return res.status(400).json({ message: result.error.message });
+    const doc = await storage.createClientDocument(result.data);
+    res.status(201).json(doc);
+  });
+
+  app.delete("/api/clients/:id/documents/:docId", async (req, res) => {
+    await storage.deleteClientDocument(Number(req.params.docId));
     res.status(204).end();
   });
 

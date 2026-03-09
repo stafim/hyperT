@@ -3,10 +3,11 @@ import { count as drizzleCount } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import {
-  suppliers, clients, products, quotations, quotationSendLog, exportOrders, orderAuditLog, platformUsers, shipmentTracking,
+  suppliers, clients, clientDocuments, products, quotations, quotationSendLog, exportOrders, orderAuditLog, platformUsers, shipmentTracking,
   documentos, documentoAuditLog, lpco,
   type Supplier, type InsertSupplier,
   type Client, type InsertClient,
+  type ClientDocument, type InsertClientDocument,
   type Product, type InsertProduct,
   type Quotation, type InsertQuotation, type QuotationWithDetails,
   type QuotationSendLogEntry,
@@ -34,6 +35,11 @@ export interface IStorage {
   createClient(data: InsertClient): Promise<Client>;
   updateClient(id: number, data: Partial<InsertClient>): Promise<Client | undefined>;
   deleteClient(id: number): Promise<void>;
+
+  getClientDocuments(clientId: number): Promise<ClientDocument[]>;
+  createClientDocument(data: InsertClientDocument): Promise<ClientDocument>;
+  deleteClientDocument(id: number): Promise<void>;
+  getOrdersByClient(clientId: number): Promise<ExportOrderWithDetails[]>;
 
   getProducts(): Promise<Product[]>;
   getProduct(id: number): Promise<Product | undefined>;
@@ -144,6 +150,35 @@ export class DatabaseStorage implements IStorage {
 
   async deleteClient(id: number): Promise<void> {
     await db.delete(clients).where(eq(clients.id, id));
+  }
+
+  async getClientDocuments(clientId: number): Promise<ClientDocument[]> {
+    return db.select().from(clientDocuments).where(eq(clientDocuments.clientId, clientId)).orderBy(desc(clientDocuments.createdAt));
+  }
+
+  async createClientDocument(data: InsertClientDocument): Promise<ClientDocument> {
+    const [doc] = await db.insert(clientDocuments).values(data).returning();
+    return doc;
+  }
+
+  async deleteClientDocument(id: number): Promise<void> {
+    await db.delete(clientDocuments).where(eq(clientDocuments.id, id));
+  }
+
+  async getOrdersByClient(clientId: number): Promise<ExportOrderWithDetails[]> {
+    const rows = await db
+      .select()
+      .from(exportOrders)
+      .leftJoin(clients, eq(exportOrders.clientId, clients.id))
+      .leftJoin(products, eq(exportOrders.productId, products.id))
+      .where(eq(exportOrders.clientId, clientId))
+      .orderBy(desc(exportOrders.createdAt));
+    return rows.map((row) => ({
+      ...row.export_orders,
+      client: row.clients!,
+      product: row.products!,
+      supplier: null,
+    }));
   }
 
   async getProducts(): Promise<Product[]> {

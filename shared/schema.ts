@@ -29,6 +29,27 @@ export const clients = pgTable("clients", {
   country: text("country").notNull(),
   creditLimit: numeric("credit_limit", { precision: 12, scale: 2 }).notNull().default("0"),
   paymentTerms: text("payment_terms").notNull(),
+  email: text("email"),
+  phone: text("phone"),
+  responsavel: text("responsavel"),
+  registroNacional: text("registro_nacional"),
+  address: text("address"),
+  city: text("city"),
+  state: text("state"),
+  zipCode: text("zip_code"),
+  notes: text("notes"),
+});
+
+export const clientDocuments = pgTable("client_documents", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  clientId: integer("client_id").notNull(),
+  nome: text("nome").notNull(),
+  tipo: text("tipo").notNull().default("outro"),
+  numero: text("numero"),
+  emissao: date("emissao"),
+  validade: date("validade"),
+  observacoes: text("observacoes"),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 export const products = pgTable("products", {
@@ -205,6 +226,10 @@ export const lpco = pgTable("lpco", {
 
 export type Lpco = typeof lpco.$inferSelect;
 export type InsertLpco = typeof lpco.$inferInsert;
+
+export const insertClientDocumentSchema = createInsertSchema(clientDocuments).omit({ id: true, createdAt: true });
+export type InsertClientDocument = z.infer<typeof insertClientDocumentSchema>;
+export type ClientDocument = typeof clientDocuments.$inferSelect;
 
 export const insertSupplierSchema = createInsertSchema(suppliers).omit({ id: true });
 export const insertClientSchema = createInsertSchema(clients).omit({ id: true });
