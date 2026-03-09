@@ -2,6 +2,7 @@ import { storage } from "./storage";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { Client, Supplier, Product, Quotation, ExportOrder } from "@shared/schema";
+import { textToSpeech } from "./replit_integrations/audio/client";
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID;
@@ -268,4 +269,101 @@ export async function notifyNewOrder(order: ExportOrder & { clientName?: string;
     `<i>Hypertrade ERP</i>`,
   ].filter(Boolean).join("\n");
   await sendTelegramMessage(text);
+}
+
+// ─── Resumo em Áudio ───────────────────────────────────────────────────────────
+
+export async function buildAudioSummaryText(): Promise<string> {
+  const orders = await storage.getOrders();
+  const quotations = await storage.getQuotations();
+  const now = new Date();
+
+  const fmtSpeech = (n: number) =>
+    new Intl.NumberFormat("pt-BR", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
+
+  const totalRevenue = orders.reduce((s, o) => s + Number(o.total ?? 0), 0);
+  const totalPago = orders.filter(o => o.statusPagamento === "pago").reduce((s, o) => s + Number(o.total ?? 0), 0);
+  const totalPendente = orders.filter(o => o.statusPagamento === "pendente").reduce((s, o) => s + Number(o.total ?? 0), 0);
+  const totalAtrasado = orders.filter(o => o.statusPagamento === "atrasado").reduce((s, o) => s + Number(o.total ?? 0), 0);
+  const overdueCount = orders.filter(o => o.statusPagamento === "atrasado").length;
+
+  const pipelineQuotes = quotations.filter(q => q.status === "rascunho" || q.status === "enviada");
+  const pipelineValue = pipelineQuotes.reduce((s, q) => s + Number(q.total ?? 0), 0);
+  const convertedCount = quotations.filter(q => q.status === "convertida").length;
+  const decidedCount = quotations.filter(q => ["aceita", "recusada", "convertida"].includes(q.status)).length;
+  const convRate = decidedCount > 0 ? Math.round((convertedCount / decidedCount) * 100) : 0;
+
+  // Day-by-day breakdown — last 7 days
+  const DAYS_PT = ["domingo", "segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado"];
+  const dailyLines: string[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(now.getDate() - i);
+    const dateStr = d.toISOString().split("T")[0];
+    const dayName = i === 0 ? "hoje" : i === 1 ? "ontem" : DAYS_PT[d.getDay()];
+
+    const dayOrders = orders.filter(o => {
+      const created = o.createdAt ? new Date(o.createdAt).toISOString().split("T")[0] : "";
+      return created === dateStr;
+    });
+    const dayQuotes = quotations.filter(q => {
+      const created = q.createdAt ? new Date(q.createdAt).toISOString().split("T")[0] : "";
+      return created === dateStr;
+    });
+
+    if (dayOrders.length > 0 || dayQuotes.length > 0) {
+      const dayTotal = dayOrders.reduce((s, o) => s + Number(o.total ?? 0), 0);
+      let line = `${dayName.charAt(0).toUpperCase() + dayName.slice(1)}, dia ${d.getDate()} de ${format(d, "MMMM", { locale: ptBR })}:`;
+      if (dayOrders.length > 0) line += ` ${dayOrders.length} ordem${dayOrders.length > 1 ? "s" : ""} no valor de ${fmtSpeech(dayTotal)}.`;
+      if (dayQuotes.length > 0) line += ` ${dayQuotes.length} cotação${dayQuotes.length > 1 ? "ões" : ""} registrada${dayQuotes.length > 1 ? "s" : ""}.`;
+      dailyLines.push(line);
+    }
+  }
+
+  const parts: string[] = [];
+  parts.push(`Bom dia! Aqui está o resumo das operações da Hypertrade, gerado em ${format(now, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}.`);
+  parts.push("");
+  parts.push(`Visão geral das ordens de exportação: o faturamento total acumulado é de ${fmtSpeech(totalRevenue)}, sendo ${fmtSpeech(totalPago)} já recebido, ${fmtSpeech(totalPendente)} pendente de pagamento${overdueCount > 0 ? ` e ${fmtSpeech(totalAtrasado)} em atraso, com ${overdueCount} fatura${overdueCount > 1 ? "s" : ""} vencida${overdueCount > 1 ? "s" : ""}` : ""}.`);
+  parts.push("");
+  parts.push(`Em relação ao pipeline de cotações: há ${pipelineQuotes.length} cotação${pipelineQuotes.length !== 1 ? "ões" : ""} ativa${pipelineQuotes.length !== 1 ? "s" : ""} com valor total de ${fmtSpeech(pipelineValue)}, e a taxa de conversão está em ${convRate} por cento.`);
+
+  if (dailyLines.length > 0) {
+    parts.push("");
+    parts.push("Movimentação dos últimos sete dias:");
+    dailyLines.forEach(l => parts.push(l));
+  } else {
+    parts.push("");
+    parts.push("Não houve movimentação registrada nos últimos sete dias.");
+  }
+
+  parts.push("");
+  parts.push("Este foi o resumo de hoje. Boas negociações!");
+
+  return parts.join(" ");
+}
+
+export async function sendTelegramAudio(): Promise<{ ok: boolean; error?: string }> {
+  if (!BOT_TOKEN || !CHAT_ID) {
+    return { ok: false, error: "Credenciais do Telegram não configuradas." };
+  }
+
+  const summaryText = await buildAudioSummaryText();
+  const audioBuffer = await textToSpeech(summaryText, "nova", "mp3");
+
+  const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendAudio`;
+  try {
+    const form = new FormData();
+    form.append("chat_id", CHAT_ID);
+    form.append("audio", new Blob([audioBuffer], { type: "audio/mpeg" }), "resumo-hypertrade.mp3");
+    form.append("caption", `🎙️ Resumo em Áudio — Hypertrade ERP\n📅 ${today()}`);
+    form.append("title", `Resumo Hypertrade ${today()}`);
+    form.append("performer", "Hypertrade ERP");
+
+    const res = await fetch(url, { method: "POST", body: form });
+    const data = await res.json() as any;
+    if (!data.ok) return { ok: false, error: data.description ?? "Erro desconhecido" };
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, error: e.message };
+  }
 }

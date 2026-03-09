@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { DollarSign, Package, FileText, TrendingUp, Globe, Truck, Ship, ShieldCheck, BarChart3, CalendarDays, Landmark, Settings2, Layers, Navigation, ShoppingCart, Target, Percent, Wallet, Send, CheckCircle2, AlertCircle, Loader2, CalendarClock, ZoomIn, X, ArrowLeft } from "lucide-react";
+import { DollarSign, Package, FileText, TrendingUp, Globe, Truck, Ship, ShieldCheck, BarChart3, CalendarDays, Landmark, Settings2, Layers, Navigation, ShoppingCart, Target, Percent, Wallet, Send, CheckCircle2, AlertCircle, Loader2, CalendarClock, ZoomIn, X, ArrowLeft, Mic } from "lucide-react";
 import { SiTelegram } from "react-icons/si";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -164,6 +164,7 @@ function TelegramPanel() {
   const reportMut = useSend("/api/telegram/report");
   const vencMut = useSend("/api/telegram/vencimentos");
   const lpcoMut = useSend("/api/telegram/lpco");
+  const audioMut = useSend("/api/telegram/audio-resumo");
   const customMut = useMutation({
     mutationFn: () => apiRequest("POST", "/api/telegram/custom", { message: customMsg }).then(r => r.json()),
     onSuccess: (data: any) => {
@@ -173,7 +174,7 @@ function TelegramPanel() {
     onError: (e: any) => toast({ title: "Erro ao enviar", description: e.message, variant: "destructive" }),
   });
 
-  const anyPending = testMut.isPending || reportMut.isPending || vencMut.isPending || lpcoMut.isPending || customMut.isPending;
+  const anyPending = testMut.isPending || reportMut.isPending || vencMut.isPending || lpcoMut.isPending || audioMut.isPending || customMut.isPending;
 
   return (
     <>
@@ -258,6 +259,19 @@ function TelegramPanel() {
                 <div>
                   <p className="text-sm font-medium">Alerta de LPCO</p>
                   <p className="text-xs text-muted-foreground">Licenças vencendo nos próximos 90 dias</p>
+                </div>
+              </button>
+
+              <button
+                className="w-full flex items-center gap-3 rounded-lg border border-[#2AABEE]/30 p-3 text-left hover:bg-[#2AABEE]/5 transition-colors disabled:opacity-50"
+                onClick={() => audioMut.mutate()}
+                disabled={anyPending || !configured}
+                data-testid="button-telegram-audio"
+              >
+                {audioMut.isPending ? <Loader2 className="h-4 w-4 animate-spin text-[#2AABEE] shrink-0" /> : <Mic className="h-4 w-4 text-[#2AABEE] shrink-0" />}
+                <div>
+                  <p className="text-sm font-medium">Resumo em Áudio</p>
+                  <p className="text-xs text-muted-foreground">Narração com cotações e vendas dos últimos 7 dias</p>
                 </div>
               </button>
             </div>
