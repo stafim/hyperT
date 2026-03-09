@@ -283,6 +283,22 @@ export type PlatformUser = typeof platformUsers.$inferSelect;
 export type InsertShipmentTracking = z.infer<typeof insertShipmentTrackingSchema>;
 export type ShipmentTracking = typeof shipmentTracking.$inferSelect;
 
+// ─── Audio PRO Topics Config ───────────────────────────────────────────────────
+export const audioProTopicsConfig = pgTable("audio_pro_topics_config", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  tempo: boolean("tempo").notNull().default(true),
+  dolar: boolean("dolar").notNull().default(true),
+  emails: boolean("emails").notNull().default(true),
+  operacaoOntem: boolean("operacao_ontem").notNull().default(true),
+  cotacoes: boolean("cotacoes").notNull().default(true),
+  vendasSemana: boolean("vendas_semana").notNull().default(true),
+  vencimentosSemana: boolean("vencimentos_semana").notNull().default(true),
+  kanbanNotas: boolean("kanban_notas").notNull().default(true),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export type AudioProTopicsConfig = typeof audioProTopicsConfig.$inferSelect;
+
 // ─── Telegram Notification Config ─────────────────────────────────────────────
 export const telegramNotificationConfig = pgTable("telegram_notification_config", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),

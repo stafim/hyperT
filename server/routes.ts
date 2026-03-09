@@ -1265,6 +1265,24 @@ ${schemaContext}${customContext}`;
     }
   });
 
+  app.get("/api/telegram/audio-pro/config", async (_req, res) => {
+    try {
+      const config = await storage.getAudioProTopicsConfig();
+      res.json(config);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/telegram/audio-pro/config", async (req, res) => {
+    try {
+      const config = await storage.saveAudioProTopicsConfig(req.body);
+      res.json(config);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   app.post("/api/telegram/audio-pro", async (_req, res) => {
     try {
       const result = await sendTelegramAudioPro();

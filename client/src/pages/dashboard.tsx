@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { DollarSign, Package, FileText, TrendingUp, Globe, Truck, Ship, ShieldCheck, BarChart3, CalendarDays, Landmark, Settings2, Layers, Navigation, ShoppingCart, Target, Percent, Wallet, Send, CheckCircle2, AlertCircle, Loader2, CalendarClock, ZoomIn, X, ArrowLeft, Mic, Sparkles } from "lucide-react";
@@ -166,6 +167,26 @@ function TelegramPanel() {
   const lpcoMut = useSend("/api/telegram/lpco");
   const audioMut = useSend("/api/telegram/audio-resumo");
   const audioProMut = useSend("/api/telegram/audio-pro");
+
+  const [showProConfig, setShowProConfig] = useState(false);
+  const { data: proConfig, isLoading: proConfigLoading } = useQuery<any>({
+    queryKey: ["/api/telegram/audio-pro/config"],
+  });
+  const saveProConfigMut = useMutation({
+    mutationFn: (data: Record<string, boolean>) =>
+      apiRequest("POST", "/api/telegram/audio-pro/config", data).then(r => r.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/telegram/audio-pro/config"] });
+      toast({ title: "✅ Configuração salva!" });
+    },
+    onError: (e: any) => toast({ title: "Erro ao salvar", description: e.message, variant: "destructive" }),
+  });
+
+  const toggleTopic = (key: string, value: boolean) => {
+    if (!proConfig) return;
+    saveProConfigMut.mutate({ ...proConfig, [key]: value });
+  };
+
   const customMut = useMutation({
     mutationFn: () => apiRequest("POST", "/api/telegram/custom", { message: customMsg }).then(r => r.json()),
     onSuccess: (data: any) => {
@@ -276,27 +297,84 @@ function TelegramPanel() {
                 </div>
               </button>
 
-              <button
-                className="w-full flex items-center gap-3 rounded-lg border border-amber-400/40 bg-gradient-to-r from-amber-50/60 to-yellow-50/60 dark:from-amber-950/20 dark:to-yellow-950/20 p-3 text-left hover:from-amber-100/60 hover:to-yellow-100/60 dark:hover:from-amber-950/30 dark:hover:to-yellow-950/30 transition-all disabled:opacity-50"
-                onClick={() => audioProMut.mutate()}
-                disabled={anyPending || !configured}
-                data-testid="button-telegram-audio-pro"
-              >
-                {audioProMut.isPending
-                  ? <Loader2 className="h-4 w-4 animate-spin text-amber-500 shrink-0" />
-                  : <span className="relative shrink-0">
-                      <Mic className="h-4 w-4 text-amber-500" />
-                      <Sparkles className="h-2.5 w-2.5 text-amber-400 absolute -top-1 -right-1" />
-                    </span>
-                }
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold flex items-center gap-1.5">
-                    Resumo em Áudio PRO
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-400 text-amber-900">PRO</span>
-                  </p>
-                  <p className="text-xs text-muted-foreground">Tempo · Dólar · E-mails · Empresa</p>
-                </div>
-              </button>
+              <div className="flex gap-2 items-stretch">
+                <button
+                  className="flex-1 flex items-center gap-3 rounded-lg border border-amber-400/40 bg-gradient-to-r from-amber-50/60 to-yellow-50/60 dark:from-amber-950/20 dark:to-yellow-950/20 p-3 text-left hover:from-amber-100/60 hover:to-yellow-100/60 dark:hover:from-amber-950/30 dark:hover:to-yellow-950/30 transition-all disabled:opacity-50"
+                  onClick={() => audioProMut.mutate()}
+                  disabled={anyPending || !configured}
+                  data-testid="button-telegram-audio-pro"
+                >
+                  {audioProMut.isPending
+                    ? <Loader2 className="h-4 w-4 animate-spin text-amber-500 shrink-0" />
+                    : <span className="relative shrink-0">
+                        <Mic className="h-4 w-4 text-amber-500" />
+                        <Sparkles className="h-2.5 w-2.5 text-amber-400 absolute -top-1 -right-1" />
+                      </span>
+                  }
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold flex items-center gap-1.5">
+                      Resumo em Áudio PRO
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-400 text-amber-900">PRO</span>
+                    </p>
+                    <p className="text-xs text-muted-foreground">Tempo · Dólar · E-mails · Empresa</p>
+                  </div>
+                </button>
+                <button
+                  className="shrink-0 flex items-center justify-center w-10 rounded-lg border border-amber-400/40 bg-amber-50/60 dark:bg-amber-950/20 hover:bg-amber-100/60 dark:hover:bg-amber-950/30 transition-all"
+                  onClick={() => setShowProConfig(true)}
+                  title="Configurar tópicos do Áudio PRO"
+                  data-testid="button-pro-config"
+                >
+                  <Settings2 className="h-4 w-4 text-amber-600" />
+                </button>
+              </div>
+
+              <Sheet open={showProConfig} onOpenChange={setShowProConfig}>
+                <SheetContent side="right" className="w-[340px] sm:w-[400px]">
+                  <SheetHeader className="mb-4">
+                    <SheetTitle className="flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-amber-500" />
+                      Configurar Tópicos do Áudio PRO
+                    </SheetTitle>
+                    <p className="text-sm text-muted-foreground">Ative ou desative os blocos que serão narrados no briefing matinal.</p>
+                  </SheetHeader>
+
+                  {proConfigLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : proConfig ? (
+                    <div className="space-y-1">
+                      {[
+                        { key: "tempo", label: "Previsão do Tempo", desc: "Temperatura e chuva em SJP", icon: "🌤️" },
+                        { key: "dolar", label: "Cotação do Dólar", desc: "PTAX do Banco Central", icon: "💵" },
+                        { key: "emails", label: "Caixa de E-mails", desc: "Status da caixa de entrada", icon: "📬" },
+                        { key: "operacaoOntem", label: "Operação de Ontem", desc: "Ordens e cotações do dia anterior", icon: "📋" },
+                        { key: "cotacoes", label: "Pipeline de Cotações", desc: "Ativas, valor e taxa de conversão", icon: "📊" },
+                        { key: "vendasSemana", label: "Vendas da Semana", desc: "Ordens registradas desde segunda", icon: "📈" },
+                        { key: "vencimentosSemana", label: "Vencimentos da Semana", desc: "Faturas que vencem esta semana", icon: "📅" },
+                        { key: "kanbanNotas", label: "Anotações do Kanban", desc: "Cotações com notas e registros", icon: "🗂️" },
+                      ].map(({ key, label, desc, icon }) => (
+                        <div key={key} className="flex items-center justify-between py-3 px-3 rounded-lg hover:bg-muted/50 transition-colors">
+                          <div className="flex items-center gap-3">
+                            <span className="text-lg">{icon}</span>
+                            <div>
+                              <p className="text-sm font-medium">{label}</p>
+                              <p className="text-xs text-muted-foreground">{desc}</p>
+                            </div>
+                          </div>
+                          <Switch
+                            checked={!!proConfig[key]}
+                            onCheckedChange={(val) => toggleTopic(key, val)}
+                            disabled={saveProConfigMut.isPending}
+                            data-testid={`switch-pro-${key}`}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </SheetContent>
+              </Sheet>
             </div>
 
             <Separator />

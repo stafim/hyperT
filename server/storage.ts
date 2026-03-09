@@ -4,7 +4,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import {
   suppliers, clients, clientDocuments, products, quotations, quotationSendLog, quotationNotes, exportOrders, orderAuditLog, platformUsers, shipmentTracking,
-  documentos, documentoAuditLog, lpco, telegramNotificationConfig,
+  documentos, documentoAuditLog, lpco, audioProTopicsConfig, telegramNotificationConfig,
   type Supplier, type InsertSupplier,
   type Client, type InsertClient,
   type ClientDocument, type InsertClientDocument,
@@ -18,6 +18,7 @@ import {
   type ShipmentTracking, type InsertShipmentTracking,
   type Documento, type InsertDocumento, type DocumentoAuditEntry,
   type Lpco, type InsertLpco,
+  type AudioProTopicsConfig,
   type TelegramConfig,
 } from "@shared/schema";
 
@@ -93,6 +94,8 @@ export interface IStorage {
   updateLpco(id: number, data: Partial<InsertLpco>): Promise<Lpco | undefined>;
   deleteLpco(id: number): Promise<void>;
 
+  getAudioProTopicsConfig(): Promise<AudioProTopicsConfig>;
+  saveAudioProTopicsConfig(data: Partial<Omit<AudioProTopicsConfig, "id" | "updatedAt">>): Promise<AudioProTopicsConfig>;
   getTelegramConfig(): Promise<TelegramConfig>;
   saveTelegramConfig(data: Partial<Omit<TelegramConfig, "id" | "updatedAt">>): Promise<TelegramConfig>;
 
@@ -764,6 +767,23 @@ export class DatabaseStorage implements IStorage {
 
   async deleteLpco(id: number): Promise<void> {
     await db.delete(lpco).where(eq(lpco.id, id));
+  }
+
+  async getAudioProTopicsConfig(): Promise<AudioProTopicsConfig> {
+    const [row] = await db.select().from(audioProTopicsConfig).limit(1);
+    if (row) return row;
+    const [created] = await db.insert(audioProTopicsConfig).values({}).returning();
+    return created;
+  }
+
+  async saveAudioProTopicsConfig(data: Partial<Omit<AudioProTopicsConfig, "id" | "updatedAt">>): Promise<AudioProTopicsConfig> {
+    const existing = await this.getAudioProTopicsConfig();
+    const [row] = await db
+      .update(audioProTopicsConfig)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(audioProTopicsConfig.id, existing.id))
+      .returning();
+    return row;
   }
 
   async getTelegramConfig(): Promise<TelegramConfig> {
