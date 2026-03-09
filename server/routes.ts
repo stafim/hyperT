@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { isTelegramConfigured, sendTelegramMessage, buildDailyReport, buildVencimentosAlert, buildLpcoAlert, notifyNewClient, notifyNewSupplier, notifyNewProduct, notifyNewQuotation, notifyNewOrder, sendTelegramAudio } from "./telegram";
+import { isTelegramConfigured, sendTelegramMessage, buildDailyReport, buildVencimentosAlert, buildLpcoAlert, notifyNewClient, notifyNewSupplier, notifyNewProduct, notifyNewQuotation, notifyNewOrder, sendTelegramAudio, sendTelegramAudioPro } from "./telegram";
 import { insertClientSchema, insertClientDocumentSchema, insertProductSchema, insertSupplierSchema, insertQuotationSchema, insertPlatformUserSchema, insertShipmentTrackingSchema } from "@shared/schema";
 import OpenAI from "openai";
 import { registerPortalRoutes } from "./portal-routes";
@@ -1259,6 +1259,16 @@ ${schemaContext}${customContext}`;
     try {
       const result = await sendTelegramAudio();
       if (result.ok) res.json({ ok: true, message: "Resumo em áudio enviado com sucesso!" });
+      else res.status(500).json({ ok: false, error: result.error });
+    } catch (e: any) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post("/api/telegram/audio-pro", async (_req, res) => {
+    try {
+      const result = await sendTelegramAudioPro();
+      if (result.ok) res.json({ ok: true, message: "Briefing PRO enviado com sucesso!" });
       else res.status(500).json({ ok: false, error: result.error });
     } catch (e: any) {
       res.status(500).json({ ok: false, error: e.message });

@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { DollarSign, Package, FileText, TrendingUp, Globe, Truck, Ship, ShieldCheck, BarChart3, CalendarDays, Landmark, Settings2, Layers, Navigation, ShoppingCart, Target, Percent, Wallet, Send, CheckCircle2, AlertCircle, Loader2, CalendarClock, ZoomIn, X, ArrowLeft, Mic } from "lucide-react";
+import { DollarSign, Package, FileText, TrendingUp, Globe, Truck, Ship, ShieldCheck, BarChart3, CalendarDays, Landmark, Settings2, Layers, Navigation, ShoppingCart, Target, Percent, Wallet, Send, CheckCircle2, AlertCircle, Loader2, CalendarClock, ZoomIn, X, ArrowLeft, Mic, Sparkles } from "lucide-react";
 import { SiTelegram } from "react-icons/si";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -165,6 +165,7 @@ function TelegramPanel() {
   const vencMut = useSend("/api/telegram/vencimentos");
   const lpcoMut = useSend("/api/telegram/lpco");
   const audioMut = useSend("/api/telegram/audio-resumo");
+  const audioProMut = useSend("/api/telegram/audio-pro");
   const customMut = useMutation({
     mutationFn: () => apiRequest("POST", "/api/telegram/custom", { message: customMsg }).then(r => r.json()),
     onSuccess: (data: any) => {
@@ -174,7 +175,7 @@ function TelegramPanel() {
     onError: (e: any) => toast({ title: "Erro ao enviar", description: e.message, variant: "destructive" }),
   });
 
-  const anyPending = testMut.isPending || reportMut.isPending || vencMut.isPending || lpcoMut.isPending || audioMut.isPending || customMut.isPending;
+  const anyPending = testMut.isPending || reportMut.isPending || vencMut.isPending || lpcoMut.isPending || audioMut.isPending || audioProMut.isPending || customMut.isPending;
 
   return (
     <>
@@ -272,6 +273,28 @@ function TelegramPanel() {
                 <div>
                   <p className="text-sm font-medium">Resumo em Áudio</p>
                   <p className="text-xs text-muted-foreground">Narração com cotações e vendas dos últimos 7 dias</p>
+                </div>
+              </button>
+
+              <button
+                className="w-full flex items-center gap-3 rounded-lg border border-amber-400/40 bg-gradient-to-r from-amber-50/60 to-yellow-50/60 dark:from-amber-950/20 dark:to-yellow-950/20 p-3 text-left hover:from-amber-100/60 hover:to-yellow-100/60 dark:hover:from-amber-950/30 dark:hover:to-yellow-950/30 transition-all disabled:opacity-50"
+                onClick={() => audioProMut.mutate()}
+                disabled={anyPending || !configured}
+                data-testid="button-telegram-audio-pro"
+              >
+                {audioProMut.isPending
+                  ? <Loader2 className="h-4 w-4 animate-spin text-amber-500 shrink-0" />
+                  : <span className="relative shrink-0">
+                      <Mic className="h-4 w-4 text-amber-500" />
+                      <Sparkles className="h-2.5 w-2.5 text-amber-400 absolute -top-1 -right-1" />
+                    </span>
+                }
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold flex items-center gap-1.5">
+                    Resumo em Áudio PRO
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-400 text-amber-900">PRO</span>
+                  </p>
+                  <p className="text-xs text-muted-foreground">Tempo · Dólar · E-mails · Empresa</p>
                 </div>
               </button>
             </div>

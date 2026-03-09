@@ -348,6 +348,125 @@ export async function buildAudioSummaryText(): Promise<string> {
   return parts.join(" ");
 }
 
+// ─── Áudio PRO — Dados externos ───────────────────────────────────────────────
+
+function wmoDescription(code: number): string {
+  if (code === 0) return "céu limpo";
+  if (code <= 3) return "parcialmente nublado";
+  if (code <= 48) return "nevoeiro";
+  if (code <= 55) return "garoa leve";
+  if (code <= 65) return "chuva";
+  if (code <= 67) return "chuva com granizo";
+  if (code <= 77) return "neve";
+  if (code <= 82) return "chuvas fortes";
+  if (code <= 84) return "aguaceiros com neve";
+  if (code <= 99) return "tempestade com raios";
+  return "condições variadas";
+}
+
+async function fetchWeather(): Promise<string> {
+  try {
+    const url = "https://api.open-meteo.com/v1/forecast?latitude=-25.5254&longitude=-49.1963" +
+      "&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m" +
+      "&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max" +
+      "&timezone=America%2FSao_Paulo&forecast_days=1";
+    const res = await fetch(url);
+    const data = await res.json() as any;
+    const c = data.current;
+    const d = data.daily;
+    const desc = wmoDescription(Number(c.weather_code));
+    const tempAtual = Math.round(c.temperature_2m);
+    const sensacao = Math.round(c.apparent_temperature);
+    const vento = Math.round(c.wind_speed_10m);
+    const maxTemp = Math.round(d.temperature_2m_max[0]);
+    const minTemp = Math.round(d.temperature_2m_min[0]);
+    const chuva = d.precipitation_probability_max[0];
+    return `A previsão do tempo para São José dos Pinhais agora é de ${desc}, com temperatura de ${tempAtual} graus Celsius e sensação térmica de ${sensacao} graus. Os ventos estão a ${vento} quilômetros por hora. A máxima prevista para hoje é de ${maxTemp} graus e a mínima de ${minTemp} graus. A probabilidade de chuva é de ${chuva} por cento.`;
+  } catch {
+    return "Não foi possível obter a previsão do tempo no momento.";
+  }
+}
+
+async function fetchDollarRate(): Promise<string> {
+  try {
+    const res = await fetch("https://economia.awesomeapi.com.br/json/daily/USD-BRL/2");
+    const data = await res.json() as any[];
+    if (!data || data.length < 1) return "Não foi possível obter a cotação do dólar.";
+    const today = data[0];
+    const yesterday = data[1];
+    const todayRate = parseFloat(today.bid).toFixed(2).replace(".", ",");
+    const todayHigh = parseFloat(today.high).toFixed(2).replace(".", ",");
+    const todayLow = parseFloat(today.low).toFixed(2).replace(".", ",");
+    const pctChange = parseFloat(today.pctChange);
+    const direction = pctChange >= 0 ? "alta" : "queda";
+    const absPct = Math.abs(pctChange).toFixed(2).replace(".", ",");
+
+    let text = `A cotação do dólar americano hoje está em ${todayRate} reais`;
+    text += `, com máxima de ${todayHigh} e mínima de ${todayLow}.`;
+    if (yesterday) {
+      const yRate = parseFloat(yesterday.bid).toFixed(2).replace(".", ",");
+      text += ` Ontem o dólar fechou a ${yRate} reais, representando uma ${direction} de ${absPct} por cento no dia.`;
+    }
+    return text;
+  } catch {
+    return "Não foi possível obter a cotação do dólar no momento.";
+  }
+}
+
+export async function buildAudioProSummaryText(): Promise<string> {
+  const now = new Date();
+  const dateStr = format(now, "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
+  const hour = now.getHours();
+  const greeting = hour < 12 ? "Bom dia" : hour < 18 ? "Boa tarde" : "Boa noite";
+
+  const [weatherText, dollarText] = await Promise.all([fetchWeather(), fetchDollarRate()]);
+
+  const businessText = await buildAudioSummaryText();
+
+  const parts: string[] = [];
+
+  parts.push(`${greeting}, Valdinei! Este é o seu briefing completo da Hypertrade para ${dateStr}.`);
+
+  parts.push("");
+  parts.push("Começando pela previsão do tempo. " + weatherText);
+
+  parts.push("");
+  parts.push("Agora, a cotação do dólar. " + dollarText);
+
+  parts.push("");
+  parts.push("Em relação à sua caixa de entrada de e-mails: não há mensagens novas no momento. Parabéns, sua caixa está zerada! Continue assim.");
+
+  parts.push("");
+  parts.push("E agora, as informações da sua empresa para hoje.");
+  parts.push(businessText);
+
+  return parts.join(" ");
+}
+
+export async function sendTelegramAudioPro(): Promise<{ ok: boolean; error?: string }> {
+  if (!BOT_TOKEN || !CHAT_ID) {
+    return { ok: false, error: "Credenciais do Telegram não configuradas." };
+  }
+  const summaryText = await buildAudioProSummaryText();
+  const audioBuffer = await textToSpeech(summaryText, "nova", "mp3");
+
+  const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendAudio`;
+  try {
+    const form = new FormData();
+    form.append("chat_id", CHAT_ID);
+    form.append("audio", new Blob([audioBuffer], { type: "audio/mpeg" }), "briefing-pro-hypertrade.mp3");
+    form.append("caption", `⭐ Resumo em Áudio PRO — Hypertrade ERP\n📅 ${today()}`);
+    form.append("title", `Briefing PRO Hypertrade ${today()}`);
+    form.append("performer", "Hypertrade ERP");
+    const res = await fetch(url, { method: "POST", body: form });
+    const data = await res.json() as any;
+    if (!data.ok) return { ok: false, error: data.description ?? "Erro desconhecido" };
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, error: e.message };
+  }
+}
+
 export async function sendTelegramAudio(): Promise<{ ok: boolean; error?: string }> {
   if (!BOT_TOKEN || !CHAT_ID) {
     return { ok: false, error: "Credenciais do Telegram não configuradas." };
