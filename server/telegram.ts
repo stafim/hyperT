@@ -444,7 +444,7 @@ async function fetchDollarRate(): Promise<string> {
   }
 }
 
-async function buildYesterdayOperationsText(): Promise<string> {
+async function buildProOperationsText(): Promise<string> {
   const orders = await storage.getOrders();
   const quotations = await storage.getQuotations();
   const now = new Date();
@@ -452,65 +452,108 @@ async function buildYesterdayOperationsText(): Promise<string> {
   const fmtSpeech = (n: number) =>
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
 
-  // Yesterday date
+  // ── 1. ONTEM ──────────────────────────────────────────────────────────────
   const yesterday = new Date(now);
   yesterday.setDate(now.getDate() - 1);
   const yesterdayStr = yesterday.toISOString().split("T")[0];
   const yesterdayLabel = format(yesterday, "EEEE, dd 'de' MMMM", { locale: ptBR });
 
-  const yesterdayOrders = orders.filter(o => {
-    const created = o.createdAt ? new Date(o.createdAt).toISOString().split("T")[0] : "";
-    return created === yesterdayStr;
-  });
+  const yesterdayOrders = orders.filter(o =>
+    o.createdAt && new Date(o.createdAt).toISOString().split("T")[0] === yesterdayStr
+  );
+  const yesterdayQuotes = quotations.filter(q =>
+    q.createdAt && new Date(q.createdAt).toISOString().split("T")[0] === yesterdayStr
+  );
 
-  const yesterdayQuotes = quotations.filter(q => {
-    const created = q.createdAt ? new Date(q.createdAt).toISOString().split("T")[0] : "";
-    return created === yesterdayStr;
-  });
-
-  // Pipeline (current state)
+  // ── 2. COTAÇÕES (pipeline atual) ──────────────────────────────────────────
   const pipelineQuotes = quotations.filter(q => q.status === "rascunho" || q.status === "enviada");
   const pipelineValue = pipelineQuotes.reduce((s, q) => s + Number(q.total ?? 0), 0);
   const convertedCount = quotations.filter(q => q.status === "convertida").length;
   const decidedCount = quotations.filter(q => ["aceita", "recusada", "convertida"].includes(q.status)).length;
   const convRate = decidedCount > 0 ? Math.round((convertedCount / decidedCount) * 100) : 0;
+  const acceptedThisWeek = quotations.filter(q => {
+    if (q.status !== "aceita" && q.status !== "convertida") return false;
+    if (!q.updatedAt) return false;
+    const d = new Date(q.updatedAt);
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay());
+    startOfWeek.setHours(0, 0, 0, 0);
+    return d >= startOfWeek;
+  });
 
-  // General billing
-  const totalRevenue = orders.reduce((s, o) => s + Number(o.total ?? 0), 0);
-  const totalPago = orders.filter(o => o.statusPagamento === "pago").reduce((s, o) => s + Number(o.total ?? 0), 0);
-  const totalPendente = orders.filter(o => o.statusPagamento === "pendente").reduce((s, o) => s + Number(o.total ?? 0), 0);
-  const totalAtrasado = orders.filter(o => o.statusPagamento === "atrasado").reduce((s, o) => s + Number(o.total ?? 0), 0);
-  const overdueCount = orders.filter(o => o.statusPagamento === "atrasado").length;
+  // ── 3. VENDAS DA SEMANA ───────────────────────────────────────────────────
+  const startOfWeek = new Date(now);
+  startOfWeek.setDate(now.getDate() - now.getDay());
+  startOfWeek.setHours(0, 0, 0, 0);
+  const weekOrders = orders.filter(o =>
+    o.createdAt && new Date(o.createdAt) >= startOfWeek
+  );
+  const weekRevenue = weekOrders.reduce((s, o) => s + Number(o.total ?? 0), 0);
+
+  // ── 4. VENCIMENTOS DESTA SEMANA ──────────────────────────────────────────
+  const endOfWeek = new Date(startOfWeek);
+  endOfWeek.setDate(startOfWeek.getDate() + 6);
+  endOfWeek.setHours(23, 59, 59, 999);
+  const dueThisWeek = orders.filter(o => {
+    if (!o.dueDate || o.statusPagamento === "pago") return false;
+    const d = new Date(o.dueDate);
+    return d >= startOfWeek && d <= endOfWeek;
+  });
+  const dueTotal = dueThisWeek.reduce((s, o) => s + Number(o.total ?? 0), 0);
+  const overdue = orders.filter(o => {
+    if (!o.dueDate || o.statusPagamento === "pago") return false;
+    return new Date(o.dueDate) < now;
+  });
+  const overdueTotal = overdue.reduce((s, o) => s + Number(o.total ?? 0), 0);
 
   const parts: string[] = [];
 
-  parts.push(`Agora, o resumo das operações de ontem, ${yesterdayLabel}.`);
+  // BLOCO 1 — ONTEM
+  parts.push(`Primeiro, o resumo da operação de ontem, ${yesterdayLabel}.`);
 
-  // Yesterday's orders
   if (yesterdayOrders.length > 0) {
     const dayTotal = yesterdayOrders.reduce((s, o) => s + Number(o.total ?? 0), 0);
-    parts.push(`Ontem foram registradas ${yesterdayOrders.length} ordem${yesterdayOrders.length > 1 ? "s" : ""} de exportação, totalizando ${fmtSpeech(dayTotal)}.`);
-
+    parts.push(`Foram registradas ${yesterdayOrders.length} ordem${yesterdayOrders.length > 1 ? "s" : ""} de exportação, totalizando ${fmtSpeech(dayTotal)}.`);
     const clientsYest = [...new Set(yesterdayOrders.map(o => o.client?.name).filter(Boolean))];
-    if (clientsYest.length > 0) {
-      parts.push(`Os clientes envolvidos foram: ${clientsYest.join(", ")}.`);
-    }
+    if (clientsYest.length) parts.push(`Clientes: ${clientsYest.join(", ")}.`);
   } else {
     parts.push("Não foram registradas ordens de exportação ontem.");
   }
 
-  // Yesterday's quotations
   if (yesterdayQuotes.length > 0) {
-    parts.push(`Ontem também foram criadas ${yesterdayQuotes.length} cotação${yesterdayQuotes.length > 1 ? "ões" : ""} novas no sistema.`);
+    parts.push(`Foram criadas ${yesterdayQuotes.length} cotação${yesterdayQuotes.length > 1 ? "ões" : ""} novas ontem.`);
   } else {
     parts.push("Nenhuma cotação nova foi criada ontem.");
   }
 
-  // Pipeline status
-  parts.push(`Atualmente, o pipeline de cotações conta com ${pipelineQuotes.length} cotação${pipelineQuotes.length !== 1 ? "ões" : ""} ativa${pipelineQuotes.length !== 1 ? "s" : ""}, no valor total de ${fmtSpeech(pipelineValue)}, com taxa de conversão de ${convRate} por cento.`);
+  // BLOCO 2 — COTAÇÕES
+  parts.push(`Agora, as cotações. O pipeline atual tem ${pipelineQuotes.length} cotação${pipelineQuotes.length !== 1 ? "ões" : ""} ativa${pipelineQuotes.length !== 1 ? "s" : ""}, totalizando ${fmtSpeech(pipelineValue)}, com taxa de conversão de ${convRate} por cento.`);
+  if (acceptedThisWeek.length > 0) {
+    parts.push(`Esta semana, ${acceptedThisWeek.length} cotação${acceptedThisWeek.length > 1 ? "ões foram aceitas ou convertidas" : " foi aceita ou convertida"}.`);
+  }
 
-  // Billing
-  parts.push(`O faturamento acumulado total está em ${fmtSpeech(totalRevenue)}: ${fmtSpeech(totalPago)} já recebido e ${fmtSpeech(totalPendente)} pendente.${overdueCount > 0 ? ` Atenção: há ${fmtSpeech(totalAtrasado)} em atraso, referente a ${overdueCount} fatura${overdueCount > 1 ? "s" : ""} vencida${overdueCount > 1 ? "s" : ""}.` : ""}`);
+  // BLOCO 3 — VENDAS DA SEMANA
+  if (weekOrders.length > 0) {
+    parts.push(`Em relação às vendas desta semana: ${weekOrders.length} ordem${weekOrders.length > 1 ? "s" : ""} registrada${weekOrders.length > 1 ? "s" : ""}, somando ${fmtSpeech(weekRevenue)}.`);
+  } else {
+    parts.push("Não há vendas registradas esta semana ainda.");
+  }
+
+  // BLOCO 4 — VENCIMENTOS DA SEMANA
+  parts.push("Agora, a projeção de vencimentos para esta semana.");
+  if (dueThisWeek.length > 0) {
+    parts.push(`Há ${dueThisWeek.length} fatura${dueThisWeek.length > 1 ? "s" : ""} vencendo esta semana, totalizando ${fmtSpeech(dueTotal)}.`);
+    dueThisWeek.forEach(o => {
+      const dueLbl = format(new Date(o.dueDate!), "EEEE, dd 'de' MMMM", { locale: ptBR });
+      const clientName = o.client?.name ?? "cliente";
+      parts.push(`${clientName}, fatura ${o.invoice ?? `número ${o.id}`}, vence em ${dueLbl}, valor ${fmtSpeech(Number(o.total ?? 0))}.`);
+    });
+  } else {
+    parts.push("Não há faturas com vencimento esta semana.");
+  }
+  if (overdue.length > 0) {
+    parts.push(`Atenção: há ${overdue.length} fatura${overdue.length > 1 ? "s" : ""} em atraso, totalizando ${fmtSpeech(overdueTotal)}. Verifique esses casos com urgência.`);
+  }
 
   return parts.join(" ");
 }
@@ -562,36 +605,36 @@ async function buildQuotationNotesText(): Promise<string> {
 
 export async function buildAudioProSummaryText(): Promise<string> {
   const now = new Date();
-  const todayStr = format(now, "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
+  const todayStr = format(now, "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR });
 
   const [weatherText, dollarText, quotationNotesText, operationsText] = await Promise.all([
     fetchWeather(),
     fetchDollarRate(),
     buildQuotationNotesText(),
-    buildYesterdayOperationsText(),
+    buildProOperationsText(),
   ]);
 
   const parts: string[] = [];
 
-  parts.push(`Bom dia, Valdinei! Este é o seu briefing matinal da Hypertrade, ${todayStr}. Vamos ver como foi ontem e como está o dia de hoje.`);
+  parts.push(`Bom dia, Valdinei! Hoje é ${todayStr}. Este é o seu briefing matinal da Hypertrade. Vamos começar.`);
 
   parts.push("");
-  parts.push("Começando pela previsão do tempo para hoje. " + weatherText);
+  parts.push("Previsão do tempo para hoje em São José dos Pinhais. " + weatherText);
 
   parts.push("");
-  parts.push("Agora, a cotação do dólar. " + dollarText);
+  parts.push("Cotação do dólar. " + dollarText);
 
   parts.push("");
-  parts.push("Em relação à sua caixa de entrada de e-mails: não há mensagens novas no momento. Parabéns, sua caixa está zerada! Continue assim.");
+  parts.push("Caixa de e-mails: sem mensagens novas. Parabéns, caixa zerada!");
 
   parts.push("");
   parts.push(operationsText);
 
   parts.push("");
-  parts.push("Agora, as anotações do Kanban de cotações. " + quotationNotesText);
+  parts.push("Por fim, as anotações do Kanban de cotações. " + quotationNotesText);
 
   parts.push("");
-  parts.push("Este foi o seu briefing matinal completo, Valdinei. Tenha um ótimo dia e boas negociações!");
+  parts.push("Briefing concluído. Tenha um ótimo dia, Valdinei. Boas negociações!");
 
   return parts.join(" ");
 }
