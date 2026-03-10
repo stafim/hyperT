@@ -146,11 +146,56 @@ function CostRevenuePanel({
   );
 }
 
+interface CalcFields {
+  moedaLocal: string;
+  custoUnitario: string;
+  pesoUnitario: string;
+  freteInterno: string;
+  freteInternacional: string;
+  taxaCambio: string;
+  despesasAduaneiras: string;
+  incoterm: "FOB" | "CIF";
+}
+
+function calcExportPrice(c: CalcFields, qty: number): { unitPrice: number; precoFOB: number; precoCIF: number; container: string; lucroUSD: number; margemPct: number } | null {
+  const custo = parseFloat(c.custoUnitario.replace(",", "."));
+  const tc = parseFloat(c.taxaCambio.replace(",", "."));
+  const fi = parseFloat(c.freteInterno.replace(",", ".")) || 0;
+  const fintl = parseFloat(c.freteInternacional.replace(",", ".")) || 0;
+  const desp = parseFloat(c.despesasAduaneiras.replace(",", ".")) || 0;
+  const peso = parseFloat(c.pesoUnitario.replace(",", ".")) || 0;
+
+  if (!custo || custo <= 0 || !tc || tc <= 0 || qty <= 0) return null;
+
+  const custoFabUSD = (custo * qty) / tc;
+  const fiUSD = fi / tc;
+  const despUSD = custoFabUSD * (desp / 100);
+  const precoFOBTotal = custoFabUSD + fiUSD + despUSD;
+  const seguro = precoFOBTotal * 0.002;
+  const precoCIFTotal = precoFOBTotal + fintl + seguro;
+  const total = c.incoterm === "CIF" ? precoCIFTotal : precoFOBTotal;
+  const unitP = qty > 0 ? total / qty : 0;
+  const lucro = total - custoFabUSD;
+  const margem = total > 0 ? (lucro / total) * 100 : 0;
+
+  const pesoTotal = qty * peso;
+  let container = "LCL";
+  if (pesoTotal >= 26500) container = "FCL 40'";
+  else if (pesoTotal >= 5000) container = "FCL 20'";
+
+  return { unitPrice: unitP, precoFOB: precoFOBTotal / qty, precoCIF: precoCIFTotal / qty, container, lucroUSD: lucro, margemPct: margem };
+}
+
 function QuotationForm({ editQuotation, onSuccess }: { editQuotation: QuotationWithDetails | null; onSuccess: () => void }) {
   const { toast } = useToast();
   const { data: clientsList } = useQuery<Client[]>({ queryKey: ["/api/clients"] });
   const { data: productsList } = useQuery<Product[]>({ queryKey: ["/api/products"] });
   const { data: suppliersList } = useQuery<Supplier[]>({ queryKey: ["/api/suppliers"] });
+  const [showCalc, setShowCalc] = useState(!editQuotation);
+  const [calc, setCalc] = useState<CalcFields>({
+    moedaLocal: "BRL", custoUnitario: "", pesoUnitario: "", freteInterno: "",
+    freteInternacional: "", taxaCambio: "", despesasAduaneiras: "2", incoterm: "FOB",
+  });
 
   const form = useForm<InsertQuotation>({
     resolver: zodResolver(formSchema),
@@ -168,20 +213,25 @@ function QuotationForm({ editQuotation, onSuccess }: { editQuotation: QuotationW
           status: editQuotation.status,
         }
       : {
-          clientId: 0,
-          productId: 0,
-          supplierId: undefined,
-          unitPrice: "",
-          quantity: 0,
-          margem: "",
-          paymentTerms: "",
-          validityDate: "",
-          notes: "",
-          status: "rascunho",
+          clientId: 0, productId: 0, supplierId: undefined,
+          unitPrice: "", quantity: 0, margem: "", paymentTerms: "",
+          validityDate: "", notes: "", status: "rascunho",
         },
   });
 
+  const watchedQuantity = form.watch("quantity");
   const watchedProductId = form.watch("productId");
+
+  function setC(field: keyof CalcFields, value: string) {
+    const next = { ...calc, [field]: value };
+    setCalc(next);
+    const qty = Number(watchedQuantity) || 0;
+    const res = calcExportPrice(next, qty);
+    if (res) {
+      form.setValue("unitPrice", res.unitPrice.toFixed(2));
+      form.setValue("margem" as any, res.margemPct.toFixed(2));
+    }
+  }
 
   function getStandardPrice(): number | null {
     const product = productsList?.find((p) => p.id === watchedProductId);
@@ -190,7 +240,7 @@ function QuotationForm({ editQuotation, onSuccess }: { editQuotation: QuotationW
     return isNaN(sp) ? null : sp;
   }
 
-  function onMargemChange(margemStr: string) {
+  function onManualMargemChange(margemStr: string) {
     form.setValue("margem" as any, margemStr);
     const margemNum = parseFloat(margemStr);
     const sp = getStandardPrice();
@@ -210,6 +260,8 @@ function QuotationForm({ editQuotation, onSuccess }: { editQuotation: QuotationW
     }
   }
 
+  const calcResult = calcExportPrice(calc, Number(watchedQuantity) || 0);
+
   const mutation = useMutation({
     mutationFn: (data: InsertQuotation) =>
       editQuotation
@@ -223,87 +275,205 @@ function QuotationForm({ editQuotation, onSuccess }: { editQuotation: QuotationW
     onError: (e: Error) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
   });
 
+  const fmtU = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "USD" }).format(v);
+
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit((data) => mutation.mutate(data))} className="space-y-4">
-        <FormField control={form.control} name="clientId" render={({ field }) => (
-          <FormItem>
-            <FormLabel>Cliente</FormLabel>
-            <Select onValueChange={(v) => field.onChange(Number(v))} value={field.value ? String(field.value) : ""}>
-              <FormControl>
-                <SelectTrigger data-testid="select-quotation-client">
-                  <SelectValue placeholder="Selecione um cliente" />
-                </SelectTrigger>
-              </FormControl>
-              <SelectContent>
-                {clientsList?.map((c) => (
-                  <SelectItem key={c.id} value={String(c.id)}>{c.name} ({c.country})</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <FormMessage />
-          </FormItem>
-        )} />
 
-        <FormField control={form.control} name="productId" render={({ field }) => (
-          <FormItem>
-            <FormLabel>Produto</FormLabel>
-            <Select onValueChange={(v) => field.onChange(Number(v))} value={field.value ? String(field.value) : ""}>
-              <FormControl>
-                <SelectTrigger data-testid="select-quotation-product">
-                  <SelectValue placeholder="Selecione um produto" />
-                </SelectTrigger>
-              </FormControl>
-              <SelectContent>
-                {productsList?.map((p) => (
-                  <SelectItem key={p.id} value={String(p.id)}>{p.type} - {p.grammage}g/m2</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <FormMessage />
-          </FormItem>
-        )} />
-
-        <FormField control={form.control} name="supplierId" render={({ field }) => (
-          <FormItem>
-            <FormLabel>Fornecedor (opcional)</FormLabel>
-            <Select onValueChange={(v) => field.onChange(v === "none" ? null : Number(v))} value={field.value ? String(field.value) : "none"}>
-              <FormControl>
-                <SelectTrigger data-testid="select-quotation-supplier">
-                  <SelectValue placeholder="Selecione um fornecedor" />
-                </SelectTrigger>
-              </FormControl>
-              <SelectContent>
-                <SelectItem value="none">Nenhum</SelectItem>
-                {suppliersList?.map((s) => (
-                  <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <FormMessage />
-          </FormItem>
-        )} />
-
-        <div className="grid grid-cols-3 gap-4">
-          <FormField control={form.control} name="unitPrice" render={({ field }) => (
+        <div className="grid grid-cols-2 gap-3">
+          <FormField control={form.control} name="clientId" render={({ field }) => (
             <FormItem>
-              <FormLabel>Preço Unitário (USD)</FormLabel>
+              <FormLabel>Cliente</FormLabel>
+              <Select onValueChange={(v) => field.onChange(Number(v))} value={field.value ? String(field.value) : ""}>
+                <FormControl>
+                  <SelectTrigger data-testid="select-quotation-client">
+                    <SelectValue placeholder="Selecione um cliente" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  {clientsList?.map((c) => (
+                    <SelectItem key={c.id} value={String(c.id)}>{c.name} ({c.country})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )} />
+
+          <FormField control={form.control} name="productId" render={({ field }) => (
+            <FormItem>
+              <FormLabel>Produto</FormLabel>
+              <Select onValueChange={(v) => field.onChange(Number(v))} value={field.value ? String(field.value) : ""}>
+                <FormControl>
+                  <SelectTrigger data-testid="select-quotation-product">
+                    <SelectValue placeholder="Selecione um produto" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  {productsList?.map((p) => (
+                    <SelectItem key={p.id} value={String(p.id)}>{p.type} - {p.grammage}g/m2</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )} />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <FormField control={form.control} name="supplierId" render={({ field }) => (
+            <FormItem>
+              <FormLabel>Fornecedor (opcional)</FormLabel>
+              <Select onValueChange={(v) => field.onChange(v === "none" ? null : Number(v))} value={field.value ? String(field.value) : "none"}>
+                <FormControl>
+                  <SelectTrigger data-testid="select-quotation-supplier">
+                    <SelectValue placeholder="Selecione um fornecedor" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="none">Nenhum</SelectItem>
+                  {suppliersList?.map((s) => (
+                    <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )} />
+
+          <FormField control={form.control} name="quantity" render={({ field }) => (
+            <FormItem>
+              <FormLabel>Quantidade (ton)</FormLabel>
               <FormControl>
                 <Input
                   type="number"
-                  step="0.01"
-                  value={field.value}
-                  onChange={(e) => onUnitPriceChange(e.target.value)}
-                  data-testid="input-quotation-price"
+                  {...field}
+                  onChange={(e) => {
+                    field.onChange(Number(e.target.value));
+                    const qty = Number(e.target.value) || 0;
+                    const res = calcExportPrice(calc, qty);
+                    if (res) {
+                      form.setValue("unitPrice", res.unitPrice.toFixed(2));
+                      form.setValue("margem" as any, res.margemPct.toFixed(2));
+                    }
+                  }}
+                  data-testid="input-quotation-quantity"
                 />
               </FormControl>
               <FormMessage />
             </FormItem>
           )} />
-          <FormField control={form.control} name="quantity" render={({ field }) => (
+        </div>
+
+        <div className="rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20 overflow-hidden">
+          <button
+            type="button"
+            className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold text-blue-700 dark:text-blue-300 hover:bg-blue-100/50 dark:hover:bg-blue-900/30 transition-colors"
+            onClick={() => setShowCalc(!showCalc)}
+            data-testid="button-toggle-calculator"
+          >
+            <div className="flex items-center gap-2">
+              <Calculator className="h-4 w-4" />
+              Calculadora de Preço de Exportação
+            </div>
+            {showCalc ? <ChevronUp className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+          </button>
+
+          {showCalc && (
+            <div className="px-4 pb-4 pt-1 space-y-3 border-t border-blue-200 dark:border-blue-800">
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="text-xs text-muted-foreground font-medium">Moeda local</label>
+                  <Select value={calc.moedaLocal} onValueChange={(v) => setC("moedaLocal", v)}>
+                    <SelectTrigger className="h-8 text-xs" data-testid="calc-select-moeda-form">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="BRL">BRL (Real)</SelectItem>
+                      <SelectItem value="ARS">ARS (Peso AR)</SelectItem>
+                      <SelectItem value="CLP">CLP (Peso CL)</SelectItem>
+                      <SelectItem value="EUR">EUR (Euro)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground font-medium">Câmbio ({calc.moedaLocal}/USD)</label>
+                  <Input className="h-8 text-xs" type="number" min={0} placeholder="5,80" value={calc.taxaCambio} onChange={(e) => setC("taxaCambio", e.target.value)} data-testid="calc-input-cambio-form" />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground font-medium">Incoterm</label>
+                  <div className="flex gap-1 mt-1">
+                    {(["FOB", "CIF"] as const).map((t) => (
+                      <button key={t} type="button" onClick={() => setC("incoterm", t)}
+                        className={`flex-1 py-1 rounded text-xs font-semibold border transition-all ${calc.incoterm === t ? (t === "FOB" ? "bg-blue-600 text-white border-blue-600" : "bg-emerald-600 text-white border-emerald-600") : "border-border text-muted-foreground hover:border-blue-400"}`}
+                        data-testid={`calc-button-incoterm-${t.toLowerCase()}-form`}>
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs text-muted-foreground font-medium">Custo unitário ({calc.moedaLocal}/ton)</label>
+                  <Input className="h-8 text-xs" type="number" min={0} placeholder="0,00" value={calc.custoUnitario} onChange={(e) => setC("custoUnitario", e.target.value)} data-testid="calc-input-custo-form" />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground font-medium">Peso unitário (kg/ton)</label>
+                  <Input className="h-8 text-xs" type="number" min={0} placeholder="1000" value={calc.pesoUnitario} onChange={(e) => setC("pesoUnitario", e.target.value)} data-testid="calc-input-peso-form" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="text-xs text-muted-foreground font-medium">Frete interno ({calc.moedaLocal})</label>
+                  <Input className="h-8 text-xs" type="number" min={0} placeholder="0,00" value={calc.freteInterno} onChange={(e) => setC("freteInterno", e.target.value)} data-testid="calc-input-fi-form" />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground font-medium">Frete internacional (USD)</label>
+                  <Input className="h-8 text-xs" type="number" min={0} placeholder="0,00" value={calc.freteInternacional} onChange={(e) => setC("freteInternacional", e.target.value)} data-testid="calc-input-fintl-form" />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground font-medium">Desp. aduaneiras (%)</label>
+                  <Input className="h-8 text-xs" type="number" min={0} max={50} placeholder="2" value={calc.despesasAduaneiras} onChange={(e) => setC("despesasAduaneiras", e.target.value)} data-testid="calc-input-desp-form" />
+                </div>
+              </div>
+
+              {calcResult && (
+                <div className="rounded-lg bg-white dark:bg-slate-800 border border-blue-200 dark:border-blue-700 p-3 mt-2">
+                  <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-semibold mb-2">Resultado do Cálculo</p>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className={`rounded-lg p-2 text-center ${calc.incoterm === "FOB" ? "bg-blue-100 dark:bg-blue-900/40 ring-1 ring-blue-400" : "bg-slate-50 dark:bg-slate-700"}`}>
+                      <p className="text-[10px] text-muted-foreground">Preço FOB/ton</p>
+                      <p className="font-bold text-sm text-blue-700 dark:text-blue-300">{fmtU(calcResult.precoFOB)}</p>
+                    </div>
+                    <div className={`rounded-lg p-2 text-center ${calc.incoterm === "CIF" ? "bg-emerald-100 dark:bg-emerald-900/40 ring-1 ring-emerald-400" : "bg-slate-50 dark:bg-slate-700"}`}>
+                      <p className="text-[10px] text-muted-foreground">Preço CIF/ton</p>
+                      <p className="font-bold text-sm text-emerald-700 dark:text-emerald-300">{fmtU(calcResult.precoCIF)}</p>
+                    </div>
+                    <div className="rounded-lg p-2 text-center bg-slate-50 dark:bg-slate-700">
+                      <p className="text-[10px] text-muted-foreground">Container</p>
+                      <p className="font-bold text-xs">{calcResult.container}</p>
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-blue-600 dark:text-blue-400 mt-2 text-center font-medium">
+                    ↳ Preço {calc.incoterm} aplicado automaticamente: {fmtU(calcResult.unitPrice)}/ton · Margem: {calcResult.margemPct.toFixed(1)}%
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <FormField control={form.control} name="unitPrice" render={({ field }) => (
             <FormItem>
-              <FormLabel>Quantidade (ton)</FormLabel>
-              <FormControl><Input type="number" {...field} onChange={(e) => field.onChange(Number(e.target.value))} data-testid="input-quotation-quantity" /></FormControl>
+              <FormLabel>Preço Unitário (USD/ton)</FormLabel>
+              <FormControl>
+                <Input type="number" step="0.01" value={field.value} onChange={(e) => onUnitPriceChange(e.target.value)} data-testid="input-quotation-price" />
+              </FormControl>
               <FormMessage />
             </FormItem>
           )} />
@@ -315,17 +485,9 @@ function QuotationForm({ editQuotation, onSuccess }: { editQuotation: QuotationW
               </FormLabel>
               <FormControl>
                 <div className="relative">
-                  <Input
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    max="99"
-                    placeholder="Ex: 15.0"
-                    value={field.value || ""}
-                    onChange={(e) => onMargemChange(e.target.value)}
-                    data-testid="input-quotation-margem"
-                    className="pr-8"
-                  />
+                  <Input type="number" step="0.1" min="0" max="99" placeholder="Ex: 15.0"
+                    value={field.value || ""} onChange={(e) => onManualMargemChange(e.target.value)}
+                    data-testid="input-quotation-margem" className="pr-8" />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">%</span>
                 </div>
               </FormControl>
@@ -344,26 +506,27 @@ function QuotationForm({ editQuotation, onSuccess }: { editQuotation: QuotationW
           productsList={productsList}
         />
 
-        <FormField control={form.control} name="paymentTerms" render={({ field }) => (
-          <FormItem>
-            <FormLabel>Condicoes de Pagamento</FormLabel>
-            <FormControl><Input {...field} value={field.value || ""} placeholder="Ex: 30/60/90 dias" data-testid="input-quotation-terms" /></FormControl>
-            <FormMessage />
-          </FormItem>
-        )} />
-
-        <FormField control={form.control} name="validityDate" render={({ field }) => (
-          <FormItem>
-            <FormLabel>Validade</FormLabel>
-            <FormControl><Input type="date" {...field} value={field.value || ""} data-testid="input-quotation-validity" /></FormControl>
-            <FormMessage />
-          </FormItem>
-        )} />
+        <div className="grid grid-cols-2 gap-3">
+          <FormField control={form.control} name="paymentTerms" render={({ field }) => (
+            <FormItem>
+              <FormLabel>Condicoes de Pagamento</FormLabel>
+              <FormControl><Input {...field} value={field.value || ""} placeholder="Ex: 30/60/90 dias" data-testid="input-quotation-terms" /></FormControl>
+              <FormMessage />
+            </FormItem>
+          )} />
+          <FormField control={form.control} name="validityDate" render={({ field }) => (
+            <FormItem>
+              <FormLabel>Validade</FormLabel>
+              <FormControl><Input type="date" {...field} value={field.value || ""} data-testid="input-quotation-validity" /></FormControl>
+              <FormMessage />
+            </FormItem>
+          )} />
+        </div>
 
         <FormField control={form.control} name="notes" render={({ field }) => (
           <FormItem>
             <FormLabel>Observacoes</FormLabel>
-            <FormControl><Textarea {...field} value={field.value || ""} rows={3} data-testid="input-quotation-notes" /></FormControl>
+            <FormControl><Textarea {...field} value={field.value || ""} rows={2} data-testid="input-quotation-notes" /></FormControl>
             <FormMessage />
           </FormItem>
         )} />
@@ -374,9 +537,7 @@ function QuotationForm({ editQuotation, onSuccess }: { editQuotation: QuotationW
               <FormLabel>Status</FormLabel>
               <Select onValueChange={field.onChange} value={field.value || "rascunho"}>
                 <FormControl>
-                  <SelectTrigger data-testid="select-quotation-status">
-                    <SelectValue />
-                  </SelectTrigger>
+                  <SelectTrigger data-testid="select-quotation-status"><SelectValue /></SelectTrigger>
                 </FormControl>
                 <SelectContent>
                   <SelectItem value="rascunho">Rascunho</SelectItem>
@@ -1140,7 +1301,7 @@ export default function Quotations() {
               Nova Cotacao
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto">
             <DialogHeader><DialogTitle>{editQuotation ? "Editar Cotacao" : "Nova Cotacao"}</DialogTitle></DialogHeader>
             <QuotationForm editQuotation={editQuotation} onSuccess={() => { setFormOpen(false); setEditQuotation(null); }} />
           </DialogContent>
