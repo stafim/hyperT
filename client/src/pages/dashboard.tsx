@@ -12,7 +12,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { DollarSign, Package, FileText, TrendingUp, Globe, Truck, Ship, ShieldCheck, BarChart3, CalendarDays, Landmark, Settings2, Layers, Navigation, ShoppingCart, Target, Percent, Wallet, Send, CheckCircle2, AlertCircle, Loader2, CalendarClock, ZoomIn, X, ArrowLeft, Mic, Sparkles, Star } from "lucide-react";
+import { DollarSign, Package, FileText, TrendingUp, Globe, Truck, Ship, ShieldCheck, BarChart3, CalendarDays, Landmark, Settings2, Layers, Navigation, ShoppingCart, Target, Percent, Wallet, Send, CheckCircle2, AlertCircle, Loader2, CalendarClock, ZoomIn, X, ArrowLeft, Mic, Sparkles, Star, PieChart as PieChartIcon } from "lucide-react";
 import { DynamicChart, chartKindIcon } from "@/components/dynamic-chart";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR as ptBRLocale } from "date-fns/locale";
@@ -2058,28 +2058,53 @@ export default function Dashboard() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-sm font-medium flex items-center gap-2">
-                  <BarChart3 className="h-4 w-4 text-muted-foreground" />
-                  Funil de Cotações por Status
+                  <PieChartIcon className="h-4 w-4 text-muted-foreground" />
+                  Cotações por Status
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={240}>
-                  <BarChart data={quotationsStats.statusCounts} layout="vertical" barCategoryGap="20%">
-                    <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                    <XAxis type="number" tick={{ fontSize: 11 }} />
-                    <YAxis dataKey="status" type="category" tick={{ fontSize: 11 }} width={80} />
-                    <Tooltip
-                      formatter={(v: number) => [v, "Qtd"]}
-                      contentStyle={{ borderRadius: "6px", border: "1px solid hsl(var(--border))", backgroundColor: "hsl(var(--popover))", color: "hsl(var(--popover-foreground))" }}
-                    />
-                    <Bar dataKey="count" radius={[0, 4, 4, 0]}>
-                      {quotationsStats.statusCounts.map((entry, index) => {
+                {quotationsStats.statusCounts.length > 0 ? (
+                  <div className="flex items-center gap-4">
+                    <ResponsiveContainer width="55%" height={240}>
+                      <PieChart>
+                        <Pie
+                          data={quotationsStats.statusCounts}
+                          cx="50%" cy="50%"
+                          innerRadius={55}
+                          outerRadius={90}
+                          paddingAngle={4}
+                          dataKey="count"
+                          nameKey="status"
+                        >
+                          {quotationsStats.statusCounts.map((_, index) => {
+                            const colors = ["#94A3B8", "#3B82F6", "#22C55E", "#EF4444", "#1E4D7B"];
+                            return <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />;
+                          })}
+                        </Pie>
+                        <Tooltip
+                          formatter={(v: number) => [v, "Qtd"]}
+                          contentStyle={{ borderRadius: "6px", border: "1px solid hsl(var(--border))", backgroundColor: "hsl(var(--popover))", color: "hsl(var(--popover-foreground))" }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="flex flex-col gap-2 flex-1">
+                      {quotationsStats.statusCounts.map((item, i) => {
                         const colors = ["#94A3B8", "#3B82F6", "#22C55E", "#EF4444", "#1E4D7B"];
-                        return <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />;
+                        return (
+                          <div key={item.status} className="flex items-center gap-2">
+                            <div className="h-3 w-3 rounded-sm flex-shrink-0" style={{ backgroundColor: colors[i % colors.length] }} />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs truncate capitalize">{item.status}</p>
+                              <p className="text-[11px] text-muted-foreground">{item.count} cotação{item.count !== 1 ? "ões" : ""}</p>
+                            </div>
+                          </div>
+                        );
                       })}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center h-[240px] text-muted-foreground text-sm">Sem dados disponíveis</div>
+                )}
               </CardContent>
             </Card>
 
