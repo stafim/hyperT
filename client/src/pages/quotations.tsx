@@ -70,6 +70,7 @@ function CostRevenuePanel({
   margem,
   clientsList,
   productsList,
+  calcBreakdown,
 }: {
   clientId: number;
   productId: number;
@@ -78,6 +79,7 @@ function CostRevenuePanel({
   margem?: string | null;
   clientsList?: Client[];
   productsList?: Product[];
+  calcBreakdown?: CalcBreakdown | null;
 }) {
   const price = typeof unitPrice === "string" ? parseFloat(unitPrice) : unitPrice;
   if (!clientId || !productId || !price || !quantity || isNaN(price) || price <= 0 || quantity <= 0) return null;
@@ -87,10 +89,140 @@ function CostRevenuePanel({
   if (!client || !product) return null;
 
   const totalUsd = price * quantity;
+  const fmtU = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "USD" }).format(v);
+
+  if (calcBreakdown) {
+    const { custoMaterialUSD, freteInternoUSD, freteInternacionalUSD, despesasAduaneirasUSD, seguroUSD, totalCustosUSD, incoterm, lucroUSD, margemPct } = calcBreakdown;
+    const custosExportacao = freteInternoUSD + despesasAduaneirasUSD + (incoterm === "CIF" ? freteInternacionalUSD + seguroUSD : 0);
+    const pct = (val: number) => totalUsd > 0 ? ((val / totalUsd) * 100).toFixed(1) : "0.0";
+
+    return (
+      <div className="rounded-lg border-2 border-primary/20 bg-primary/5 p-4 space-y-3" data-testid="panel-cost-revenue">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+            <TrendingUp className="h-4 w-4" />
+            <span>Resumo Financeiro</span>
+          </div>
+          <Badge variant="outline" className="text-xs font-semibold">{incoterm}</Badge>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <div className="rounded-md bg-background p-3 border" data-testid="card-total-usd">
+            <p className="text-xs text-muted-foreground mb-0.5">Total Venda ({incoterm})</p>
+            <p className="text-lg font-bold">{fmtU(totalUsd)}</p>
+            <p className="text-xs text-muted-foreground">{fmtU(price)}/ton × {quantity} ton</p>
+          </div>
+          <div className="rounded-md bg-background p-3 border" data-testid="card-total-custos">
+            <p className="text-xs text-muted-foreground mb-0.5">Total Custos</p>
+            <p className="text-lg font-bold text-orange-600 dark:text-orange-400">{fmtU(totalCustosUSD)}</p>
+            <p className="text-xs text-muted-foreground">{pct(totalCustosUSD)}% da receita</p>
+          </div>
+        </div>
+
+        <div className="rounded-md bg-background border overflow-hidden" data-testid="card-custos-detalhado">
+          <div className="px-3 py-2 bg-muted/50 border-b">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Detalhamento de Custos</p>
+          </div>
+          <div className="divide-y">
+            <div className="flex items-center justify-between px-3 py-2">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-blue-500" />
+                <span className="text-sm">Custo do Material</span>
+              </div>
+              <div className="text-right">
+                <span className="text-sm font-semibold">{fmtU(custoMaterialUSD)}</span>
+                <span className="text-xs text-muted-foreground ml-2">{pct(custoMaterialUSD)}%</span>
+              </div>
+            </div>
+            {freteInternoUSD > 0 && (
+              <div className="flex items-center justify-between px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-amber-500" />
+                  <span className="text-sm">Frete Interno</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-sm font-semibold">{fmtU(freteInternoUSD)}</span>
+                  <span className="text-xs text-muted-foreground ml-2">{pct(freteInternoUSD)}%</span>
+                </div>
+              </div>
+            )}
+            {despesasAduaneirasUSD > 0 && (
+              <div className="flex items-center justify-between px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-purple-500" />
+                  <span className="text-sm">Despesas Aduaneiras</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-sm font-semibold">{fmtU(despesasAduaneirasUSD)}</span>
+                  <span className="text-xs text-muted-foreground ml-2">{pct(despesasAduaneirasUSD)}%</span>
+                </div>
+              </div>
+            )}
+            {incoterm === "CIF" && freteInternacionalUSD > 0 && (
+              <div className="flex items-center justify-between px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-cyan-500" />
+                  <span className="text-sm">Frete Internacional</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-sm font-semibold">{fmtU(freteInternacionalUSD)}</span>
+                  <span className="text-xs text-muted-foreground ml-2">{pct(freteInternacionalUSD)}%</span>
+                </div>
+              </div>
+            )}
+            {incoterm === "CIF" && seguroUSD > 0 && (
+              <div className="flex items-center justify-between px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-slate-400" />
+                  <span className="text-sm">Seguro (0,2%)</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-sm font-semibold">{fmtU(seguroUSD)}</span>
+                  <span className="text-xs text-muted-foreground ml-2">{pct(seguroUSD)}%</span>
+                </div>
+              </div>
+            )}
+            {custosExportacao > 0 && (
+              <div className="flex items-center justify-between px-3 py-2 bg-orange-50/50 dark:bg-orange-950/20">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-orange-500" />
+                  <span className="text-sm font-medium text-orange-700 dark:text-orange-300">Custos de Exportação</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-sm font-bold text-orange-700 dark:text-orange-300">{fmtU(custosExportacao)}</span>
+                  <span className="text-xs text-orange-500 ml-2">{pct(custosExportacao)}%</span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className={`rounded-md p-3 border ${lucroUSD >= 0 ? "bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800" : "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800"}`} data-testid="card-revenue">
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-2">
+              <TrendingUp className={`h-3.5 w-3.5 ${lucroUSD >= 0 ? "text-green-600 dark:text-green-400" : "text-red-500"}`} />
+              <p className={`text-xs font-semibold uppercase tracking-wide ${lucroUSD >= 0 ? "text-green-700 dark:text-green-300" : "text-red-700 dark:text-red-300"}`}>
+                Lucro da Operação
+              </p>
+            </div>
+            <Badge variant="secondary" className={`text-sm font-bold px-2.5 py-1 ${lucroUSD >= 0 ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"}`}>
+              {margemPct.toFixed(1)}% margem
+            </Badge>
+          </div>
+          <p className={`text-2xl font-bold ${lucroUSD >= 0 ? "text-green-900 dark:text-green-100" : "text-red-900 dark:text-red-100"}`}>
+            {fmtU(lucroUSD)}
+          </p>
+          <p className={`text-xs mt-1 ${lucroUSD >= 0 ? "text-green-600 dark:text-green-400" : "text-red-500"}`}>
+            {fmtU(totalUsd)} receita − {fmtU(totalCustosUSD)} custos totais
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const standardPrice = parseFloat(product.standardPrice);
   const hasValidCost = !isNaN(standardPrice) && standardPrice >= 0;
   const costUsd = hasValidCost ? standardPrice * quantity : 0;
-
   const margemNum = margem ? parseFloat(margem) : null;
   const lucroUsd = margemNum !== null && !isNaN(margemNum) && margemNum > 0
     ? totalUsd * (margemNum / 100)
@@ -111,12 +243,9 @@ function CostRevenuePanel({
           <p className="text-xs text-muted-foreground mb-1">Total Venda (USD)</p>
           <p className="text-lg font-bold">{formatCurrency(totalUsd)}</p>
         </div>
-
         <div className="rounded-md bg-background p-3 border" data-testid="card-cost-usd">
           <p className="text-xs text-muted-foreground mb-1">Custo Produto (USD)</p>
-          <p className="text-xs text-muted-foreground">
-            {formatCurrency(standardPrice)}/ton × {quantity} ton
-          </p>
+          <p className="text-xs text-muted-foreground">{formatCurrency(standardPrice)}/ton × {quantity} ton</p>
           <p className="text-lg font-bold">{formatCurrency(costUsd)}</p>
         </div>
       </div>
@@ -157,7 +286,23 @@ interface CalcFields {
   incoterm: "FOB" | "CIF";
 }
 
-function calcExportPrice(c: CalcFields, qty: number): { unitPrice: number; precoFOB: number; precoCIF: number; container: string; lucroUSD: number; margemPct: number } | null {
+interface CalcBreakdown {
+  custoMaterialUSD: number;
+  freteInternoUSD: number;
+  freteInternacionalUSD: number;
+  despesasAduaneirasUSD: number;
+  seguroUSD: number;
+  totalCustosUSD: number;
+  incoterm: "FOB" | "CIF";
+  unitPrice: number;
+  precoFOB: number;
+  precoCIF: number;
+  container: string;
+  lucroUSD: number;
+  margemPct: number;
+}
+
+function calcExportPrice(c: CalcFields, qty: number): CalcBreakdown | null {
   const custo = parseFloat(c.custoUnitario.replace(",", "."));
   const tc = parseFloat(c.taxaCambio.replace(",", "."));
   const fi = parseFloat(c.freteInterno.replace(",", ".")) || 0;
@@ -175,7 +320,8 @@ function calcExportPrice(c: CalcFields, qty: number): { unitPrice: number; preco
   const precoCIFTotal = precoFOBTotal + fintl + seguro;
   const total = c.incoterm === "CIF" ? precoCIFTotal : precoFOBTotal;
   const unitP = qty > 0 ? total / qty : 0;
-  const lucro = total - custoFabUSD;
+  const custoTotal = c.incoterm === "CIF" ? custoFabUSD + fiUSD + despUSD + fintl + seguro : custoFabUSD + fiUSD + despUSD;
+  const lucro = total - custoTotal;
   const margem = total > 0 ? (lucro / total) * 100 : 0;
 
   const pesoTotal = qty * peso;
@@ -183,7 +329,21 @@ function calcExportPrice(c: CalcFields, qty: number): { unitPrice: number; preco
   if (pesoTotal >= 26500) container = "FCL 40'";
   else if (pesoTotal >= 5000) container = "FCL 20'";
 
-  return { unitPrice: unitP, precoFOB: precoFOBTotal / qty, precoCIF: precoCIFTotal / qty, container, lucroUSD: lucro, margemPct: margem };
+  return {
+    custoMaterialUSD: custoFabUSD,
+    freteInternoUSD: fiUSD,
+    freteInternacionalUSD: fintl,
+    despesasAduaneirasUSD: despUSD,
+    seguroUSD: seguro,
+    totalCustosUSD: custoTotal,
+    incoterm: c.incoterm,
+    unitPrice: unitP,
+    precoFOB: precoFOBTotal / qty,
+    precoCIF: precoCIFTotal / qty,
+    container,
+    lucroUSD: lucro,
+    margemPct: margem,
+  };
 }
 
 function QuotationForm({ editQuotation, onSuccess }: { editQuotation: QuotationWithDetails | null; onSuccess: () => void }) {
@@ -504,6 +664,7 @@ function QuotationForm({ editQuotation, onSuccess }: { editQuotation: QuotationW
           margem={form.watch("margem" as any)}
           clientsList={clientsList}
           productsList={productsList}
+          calcBreakdown={calcResult}
         />
 
         <div className="grid grid-cols-2 gap-3">
