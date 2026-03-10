@@ -17,8 +17,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import {
   Plus, Search, Pencil, Trash2, FileCheck, Send, Mail, MessageCircle,
   ArrowRight, ChevronDown, ChevronRight, Clock, Eye, TrendingUp, FileDown,
-  LayoutGrid, List, StickyNote, User, X, ChevronUp,
+  LayoutGrid, List, StickyNote, User, X, ChevronUp, Calculator,
 } from "lucide-react";
+import { QuotationCalculator } from "@/components/quotation-calculator";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { insertQuotationSchema, type QuotationWithDetails, type InsertQuotation, type Client, type Product, type Supplier, type QuotationSendLogEntry, type QuotationNote } from "@shared/schema";
 import { z } from "zod";
@@ -1045,7 +1046,7 @@ export default function Quotations() {
   const [formOpen, setFormOpen] = useState(false);
   const [editQuotation, setEditQuotation] = useState<QuotationWithDetails | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [viewMode, setViewMode] = useState<"table" | "kanban">("table");
+  const [viewMode, setViewMode] = useState<"table" | "kanban" | "calculadora">("table");
 
   const { data: quotationsList, isLoading } = useQuery<QuotationWithDetails[]>({ queryKey: ["/api/quotations"] });
 
@@ -1123,6 +1124,14 @@ export default function Quotations() {
               <LayoutGrid className="h-4 w-4" />
               Kanban
             </button>
+            <button
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm transition-colors border-l ${viewMode === "calculadora" ? "bg-primary text-primary-foreground" : "hover:bg-muted/50"}`}
+              onClick={() => setViewMode("calculadora")}
+              data-testid="button-view-calculadora"
+            >
+              <Calculator className="h-4 w-4" />
+              Calculadora
+            </button>
           </div>
           <Dialog open={formOpen} onOpenChange={(v) => { setFormOpen(v); if (!v) setEditQuotation(null); }}>
           <DialogTrigger asChild>
@@ -1139,6 +1148,12 @@ export default function Quotations() {
         </div>
       </div>
 
+      {viewMode === "calculadora" && (
+        <QuotationCalculator />
+      )}
+
+      {viewMode !== "calculadora" && (
+      <>
       <div className="flex gap-3 flex-wrap">
         <div className="relative max-w-md flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -1307,6 +1322,8 @@ export default function Quotations() {
             </TableBody>
           </Table>
         </div>
+      )}
+      </>
       )}
     </div>
   );

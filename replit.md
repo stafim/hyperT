@@ -21,7 +21,7 @@ client/src/
     clients.tsx      - Client management (CRUD, table with detailed profile dialog: tabs for Perfil/Documentos/Histórico)
     suppliers.tsx    - Supplier management (CRUD, table format)
     products.tsx     - Product management (CRUD, with supplier link)
-    quotations.tsx   - Business quotations (CRUD, send via Email/WhatsApp, convert to order)
+    quotations.tsx   - Business quotations (CRUD, send via Email/WhatsApp, convert to order) + Calculadora tab with real-time FOB/CIF price calculator, FCL/LCL detection, PDF export
     vencimentos.tsx  - Dedicated due dates report (pending invoices, urgency tracking)
     exposicao-cambial.tsx - Currency exposure analysis dashboard (FX risk on open orders)
     quotes.tsx       - MERCOSUL+Mexico currency quotes (real-time) - sidebar: "Câmbio"
