@@ -1086,6 +1086,11 @@ export default function Dashboard() {
 
     const pipeline = quotations.filter(q => q.status === "rascunho" || q.status === "enviada");
     const pipelineValue = pipeline.reduce((acc, q) => acc + Number(q.total ?? 0), 0);
+    const pipelineLucro = pipeline.reduce((acc, q) => {
+      const total = Number(q.total ?? 0);
+      const margem = Number((q as any).margem ?? 0);
+      return acc + (total * margem) / 100;
+    }, 0);
     const pipelineCount = pipeline.length;
 
     const converted = quotations.filter(q => q.status === "convertida").length;
@@ -1134,7 +1139,7 @@ export default function Dashboard() {
       .filter(q => q.status === "rascunho" || q.status === "enviada")
       .slice(0, 5);
 
-    return { statusCounts, pipelineValue, pipelineCount, conversionRate, converted, total: quotations.length, topClients, byProduct, byMonth, recentActive };
+    return { statusCounts, pipelineValue, pipelineLucro, pipelineCount, conversionRate, converted, total: quotations.length, topClients, byProduct, byMonth, recentActive };
   }, [quotations]);
 
   if (isLoading || statsLoading) {
@@ -2005,7 +2010,7 @@ export default function Dashboard() {
         </div>
       ) : quotationsStats ? (
         <>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
             <Card data-testid="card-total-cotacoes">
               <CardHeader className="pb-2">
                 <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
@@ -2050,6 +2055,23 @@ export default function Dashboard() {
                   {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(quotationsStats.pipelineValue)}
                 </p>
                 <p className="text-xs text-muted-foreground mt-0.5">em aberto</p>
+              </CardContent>
+            </Card>
+            <Card data-testid="card-lucro-pipeline">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                  <TrendingUp className="h-3.5 w-3.5 text-emerald-500" /> Lucro em Pipeline
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                  {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(quotationsStats.pipelineLucro)}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {quotationsStats.pipelineValue > 0
+                    ? `${((quotationsStats.pipelineLucro / quotationsStats.pipelineValue) * 100).toFixed(1)}% da receita`
+                    : "sem dados"}
+                </p>
               </CardContent>
             </Card>
           </div>
