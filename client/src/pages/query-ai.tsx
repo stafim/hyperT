@@ -400,30 +400,19 @@ export default function QueryAI() {
 
   return (
     <TooltipProvider>
-      <div className="flex flex-col min-h-screen bg-background">
-        <div className="border-b bg-card px-6 py-5">
-          <div className="max-w-6xl mx-auto flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <Sparkles className="h-5 w-5" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold">Consulta Inteligente</h1>
-              <p className="text-sm text-muted-foreground">Faça perguntas em português — por texto ou por voz — e escolha como visualizar os dados</p>
-            </div>
-          </div>
-        </div>
+      <div className="flex flex-col min-h-full bg-background">
 
-        <div className="flex-1 flex max-w-6xl mx-auto w-full px-6 py-8 gap-6">
+        <div className="flex-1 flex w-full px-6 py-6 gap-6">
 
           {hasHistory && (
-            <aside className="w-72 shrink-0">
-              <div className="sticky top-8 rounded-xl border bg-card shadow-sm overflow-hidden">
-                <div className="flex items-center gap-2 px-4 py-3 border-b bg-muted/30">
+            <aside className="w-72 shrink-0 flex flex-col">
+              <div className="rounded-xl border bg-card shadow-sm overflow-hidden flex flex-col flex-1">
+                <div className="flex items-center gap-2 px-4 py-3 border-b bg-muted/30 shrink-0">
                   <History className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm font-semibold">Histórico</span>
                   <span className="ml-auto text-xs text-muted-foreground">{history.length}</span>
                 </div>
-                <div className="overflow-y-auto max-h-[calc(100vh-220px)]">
+                <div className="overflow-y-auto flex-1">
                   {sortedHistory.map((item: any) => {
                     const isActive = currentHistoryId === item.id;
                     return (
@@ -475,7 +464,17 @@ export default function QueryAI() {
             </aside>
           )}
 
-          <div className="flex-1 min-w-0 space-y-6">
+          <div className="flex-1 min-w-0 space-y-5">
+
+            <div>
+              <div className="flex items-center gap-2 mb-0.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                  <Sparkles className="h-4 w-4" />
+                </div>
+                <h1 className="text-xl font-bold">Consulta Inteligente</h1>
+              </div>
+              <p className="text-sm text-muted-foreground ml-10">Faça perguntas em português — por texto ou por voz — e escolha como visualizar os dados</p>
+            </div>
 
             <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
               {voiceState === "listening" && (
@@ -498,8 +497,8 @@ export default function QueryAI() {
                 onChange={(e) => setQuestion(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder={voiceState === "listening" ? "Aguardando transcrição de voz..." : "Ex: Como estão os pagamentos e o faturamento por cliente este ano?"}
-                className="border-0 shadow-none resize-none text-base focus-visible:ring-0 px-4 pb-3 min-h-[80px]"
-                rows={3}
+                className="border-0 shadow-none resize-none text-base focus-visible:ring-0 px-4 pb-3 min-h-[120px]"
+                rows={5}
                 readOnly={voiceState === "listening"}
                 data-testid="input-query"
               />
