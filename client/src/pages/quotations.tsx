@@ -94,7 +94,9 @@ function CostRevenuePanel({
   const fmtU = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "USD" }).format(v);
 
   if (calcBreakdown) {
-    const { custoMaterialUSD, freteInternoUSD, freteInternacionalUSD, despesasAduaneirasUSD, seguroUSD, totalCustosUSD, incoterm, lucroUSD, margemPct } = calcBreakdown;
+    const { custoMaterialUSD, freteInternoUSD, freteInternacionalUSD, despesasAduaneirasUSD, seguroUSD, totalCustosUSD, incoterm } = calcBreakdown;
+    const lucroUSD = totalUsd - totalCustosUSD;
+    const margemPct = totalUsd > 0 ? (lucroUSD / totalUsd) * 100 : 0;
     const custosExportacao = freteInternoUSD + despesasAduaneirasUSD + (incoterm === "CIF" ? freteInternacionalUSD + seguroUSD : 0);
     const pct = (val: number) => totalUsd > 0 ? ((val / totalUsd) * 100).toFixed(1) : "0.0";
 
