@@ -361,10 +361,45 @@ function QuotationForm({ editQuotation, onSuccess }: { editQuotation: QuotationW
   const { data: productsList } = useQuery<Product[]>({ queryKey: ["/api/products"] });
   const { data: suppliersList } = useQuery<Supplier[]>({ queryKey: ["/api/suppliers"] });
   const [showCalc, setShowCalc] = useState(!editQuotation);
+  const [ptaxLoading, setPtaxLoading] = useState(false);
+  const [ptaxDate, setPtaxDate] = useState<string | null>(null);
   const [calc, setCalc] = useState<CalcFields>({
     moedaLocal: "BRL", custoUnitario: "", pesoUnitario: "", freteInterno: "",
     freteInternacional: "", taxaCambio: "", despesasAduaneiras: "2", margemLucro: "20", incoterm: "FOB",
   });
+
+  useEffect(() => {
+    if (editQuotation) return;
+    async function fetchPtax() {
+      setPtaxLoading(true);
+      try {
+        for (let daysBack = 0; daysBack <= 5; daysBack++) {
+          const d = new Date();
+          d.setDate(d.getDate() - daysBack);
+          const mm = String(d.getMonth() + 1).padStart(2, "0");
+          const dd = String(d.getDate()).padStart(2, "0");
+          const yyyy = d.getFullYear();
+          const dateStr = `${mm}-${dd}-${yyyy}`;
+          const res = await fetch(
+            `https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoDolarDia(dataCotacao=@dataCotacao)?@dataCotacao='${dateStr}'&$format=json&$select=cotacaoVenda`
+          );
+          if (!res.ok) continue;
+          const json = await res.json();
+          const items = json?.value;
+          if (items && items.length > 0) {
+            const rate = items[items.length - 1].cotacaoVenda;
+            setCalc((prev) => ({ ...prev, taxaCambio: String(rate.toFixed(4)) }));
+            setPtaxDate(`${dd}/${mm}/${yyyy}`);
+            break;
+          }
+        }
+      } catch {
+      } finally {
+        setPtaxLoading(false);
+      }
+    }
+    fetchPtax();
+  }, []);
 
   const form = useForm<InsertQuotation>({
     resolver: zodResolver(formSchema),
@@ -588,8 +623,18 @@ function QuotationForm({ editQuotation, onSuccess }: { editQuotation: QuotationW
                   </Select>
                 </div>
                 <div>
-                  <label className="text-xs text-muted-foreground font-medium">Câmbio ({calc.moedaLocal}/USD)</label>
-                  <Input className="h-8 text-xs" type="text" inputMode="decimal" placeholder="5,80" value={calc.taxaCambio} onChange={(e) => setC("taxaCambio", e.target.value)} data-testid="calc-input-cambio-form" />
+                  <label className="text-xs text-muted-foreground font-medium">
+                    Câmbio ({calc.moedaLocal}/USD)
+                  </label>
+                  <div className="relative">
+                    <Input className="h-8 text-xs pr-14" type="text" inputMode="decimal" placeholder="5,80" value={calc.taxaCambio} onChange={(e) => setC("taxaCambio", e.target.value)} data-testid="calc-input-cambio-form" />
+                    {ptaxLoading && (
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground animate-pulse">PTAX…</span>
+                    )}
+                    {!ptaxLoading && ptaxDate && (
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">PTAX {ptaxDate}</span>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground font-medium">Incoterm</label>
@@ -1515,7 +1560,7 @@ export default function Quotations() {
           </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto">
             <DialogHeader><DialogTitle>{editQuotation ? "Editar Cotacao" : "Nova Cotacao"}</DialogTitle></DialogHeader>
-            <QuotationForm editQuotation={editQuotation} onSuccess={() => { setFormOpen(false); setEditQuotation(null); }} />
+            <QuotationForm key={formOpen ? `open-${editQuotation?.id ?? "new"}` : "closed"} editQuotation={editQuotation} onSuccess={() => { setFormOpen(false); setEditQuotation(null); }} />
           </DialogContent>
         </Dialog>
         </div>
