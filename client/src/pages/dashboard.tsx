@@ -1258,7 +1258,7 @@ export default function Dashboard() {
         </CardContent>
       </Card>
 
-      {(selectedSection === "all" || selectedSection === "operacional") && <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {(selectedSection === "all" || selectedSection === "operacional") && <div className="grid grid-cols-1 gap-4">
         <Card>
           <CardHeader>
             <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -1322,51 +1322,6 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Ship className="h-4 w-4 text-muted-foreground" />
-              Faturamento por Movimentação
-              <span className="ml-auto flex items-center gap-1 text-[10px] text-muted-foreground font-normal">
-                <ZoomIn className="h-3 w-3" /> clique p/ detalhar
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {stats?.vesselStatusDistribution && stats.vesselStatusDistribution.filter(d => d.status !== "Sem Status").length > 0 ? (
-              <ResponsiveContainer width="100%" height={250}>
-                <BarChart
-                  data={stats.vesselStatusDistribution.filter(d => d.status !== "Sem Status")}
-                  margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
-                  layout="vertical"
-                >
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
-                  <XAxis type="number" tick={{ fontSize: 11 }} className="fill-muted-foreground" tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
-                  <YAxis type="category" dataKey="status" tick={{ fontSize: 11 }} className="fill-muted-foreground" width={90} />
-                  <Tooltip
-                    formatter={(value: number) => [formatCurrency(value), "Valor Total"]}
-                    contentStyle={{ borderRadius: "6px", border: "1px solid hsl(var(--border))", backgroundColor: "hsl(var(--popover))", color: "hsl(var(--popover-foreground))" }}
-                  />
-                  <Bar
-                    dataKey="total"
-                    radius={[0, 4, 4, 0]}
-                    cursor="pointer"
-                    onClick={(d: any) => setDrillDown({ type: "vesselStatus", value: d.status })}
-                  >
-                    {stats.vesselStatusDistribution.filter(d => d.status !== "Sem Status").map((entry) => (
-                      <Cell key={entry.status} fill={VESSEL_STATUS_COLORS[entry.status] || "#94A3B8"} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex flex-col items-center justify-center h-[250px] text-muted-foreground text-sm gap-2">
-                <Ship className="h-8 w-8 opacity-30" />
-                <span>Nenhum dado disponível</span>
-              </div>
-            )}
-          </CardContent>
-        </Card>
       </div>}
 
       {(selectedSection === "all" || selectedSection === "financeiro") && <>
