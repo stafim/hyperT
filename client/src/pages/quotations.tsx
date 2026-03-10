@@ -71,6 +71,7 @@ function CostRevenuePanel({
   clientsList,
   productsList,
   calcBreakdown,
+  unit,
 }: {
   clientId: number;
   productId: number;
@@ -80,6 +81,7 @@ function CostRevenuePanel({
   clientsList?: Client[];
   productsList?: Product[];
   calcBreakdown?: CalcBreakdown | null;
+  unit?: string;
 }) {
   const price = typeof unitPrice === "string" ? parseFloat(unitPrice) : unitPrice;
   if (!clientId || !productId || !price || !quantity || isNaN(price) || price <= 0 || quantity <= 0) return null;
@@ -110,7 +112,7 @@ function CostRevenuePanel({
           <div className="rounded-md bg-background p-3 border" data-testid="card-total-usd">
             <p className="text-xs text-muted-foreground mb-0.5">Total Venda ({incoterm})</p>
             <p className="text-lg font-bold">{fmtU(totalUsd)}</p>
-            <p className="text-xs text-muted-foreground">{fmtU(price)}/ton × {quantity} ton</p>
+            <p className="text-xs text-muted-foreground">{fmtU(price)}/{unit ?? "un"} × {quantity} {unit ?? "un"}</p>
           </div>
           <div className="rounded-md bg-background p-3 border" data-testid="card-total-custos">
             <p className="text-xs text-muted-foreground mb-0.5">Total Custos</p>
@@ -245,7 +247,7 @@ function CostRevenuePanel({
         </div>
         <div className="rounded-md bg-background p-3 border" data-testid="card-cost-usd">
           <p className="text-xs text-muted-foreground mb-1">Custo Produto (USD)</p>
-          <p className="text-xs text-muted-foreground">{formatCurrency(standardPrice)}/ton × {quantity} ton</p>
+          <p className="text-xs text-muted-foreground">{formatCurrency(standardPrice)}/{unit ?? "un"} × {quantity} {unit ?? "un"}</p>
           <p className="text-lg font-bold">{formatCurrency(costUsd)}</p>
         </div>
       </div>
@@ -268,7 +270,7 @@ function CostRevenuePanel({
         <p className={`text-xs mt-1 ${lucroUsd >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
           {margemNum !== null && !isNaN(margemNum) && margemNum > 0
             ? `${formatCurrency(totalUsd)} × ${displayMargem.toFixed(1)}%`
-            : hasValidCost ? `(${formatCurrency(price)} − ${formatCurrency(standardPrice)}) × ${quantity} ton` : ""}
+            : hasValidCost ? `(${formatCurrency(price)} − ${formatCurrency(standardPrice)}) × ${quantity} ${unit ?? "un"}` : ""}
         </p>
       </div>
     </div>
@@ -381,6 +383,8 @@ function QuotationForm({ editQuotation, onSuccess }: { editQuotation: QuotationW
 
   const watchedQuantity = form.watch("quantity");
   const watchedProductId = form.watch("productId");
+  const selectedProduct = productsList?.find((p) => p.id === watchedProductId);
+  const unit = selectedProduct?.unidade || "un";
 
   function setC(field: keyof CalcFields, value: string) {
     const next = { ...calc, [field]: value };
@@ -504,7 +508,7 @@ function QuotationForm({ editQuotation, onSuccess }: { editQuotation: QuotationW
 
           <FormField control={form.control} name="quantity" render={({ field }) => (
             <FormItem>
-              <FormLabel>Quantidade (ton)</FormLabel>
+              <FormLabel>Quantidade ({unit})</FormLabel>
               <FormControl>
                 <Input
                   type="number"
@@ -577,12 +581,12 @@ function QuotationForm({ editQuotation, onSuccess }: { editQuotation: QuotationW
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-xs text-muted-foreground font-medium">Custo unitário ({calc.moedaLocal}/ton)</label>
+                  <label className="text-xs text-muted-foreground font-medium">Custo por {unit} ({calc.moedaLocal})</label>
                   <Input className="h-8 text-xs" type="number" min={0} placeholder="0,00" value={calc.custoUnitario} onChange={(e) => setC("custoUnitario", e.target.value)} data-testid="calc-input-custo-form" />
                 </div>
                 <div>
-                  <label className="text-xs text-muted-foreground font-medium">Peso unitário (kg/ton)</label>
-                  <Input className="h-8 text-xs" type="number" min={0} placeholder="1000" value={calc.pesoUnitario} onChange={(e) => setC("pesoUnitario", e.target.value)} data-testid="calc-input-peso-form" />
+                  <label className="text-xs text-muted-foreground font-medium">Peso por {unit} (kg)</label>
+                  <Input className="h-8 text-xs" type="number" min={0} placeholder="ex: 25" value={calc.pesoUnitario} onChange={(e) => setC("pesoUnitario", e.target.value)} data-testid="calc-input-peso-form" />
                 </div>
               </div>
 
@@ -606,11 +610,11 @@ function QuotationForm({ editQuotation, onSuccess }: { editQuotation: QuotationW
                   <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-semibold mb-2">Resultado do Cálculo</p>
                   <div className="grid grid-cols-3 gap-3">
                     <div className={`rounded-lg p-2 text-center ${calc.incoterm === "FOB" ? "bg-blue-100 dark:bg-blue-900/40 ring-1 ring-blue-400" : "bg-slate-50 dark:bg-slate-700"}`}>
-                      <p className="text-[10px] text-muted-foreground">Preço FOB/ton</p>
+                      <p className="text-[10px] text-muted-foreground">Preço FOB/{unit}</p>
                       <p className="font-bold text-sm text-blue-700 dark:text-blue-300">{fmtU(calcResult.precoFOB)}</p>
                     </div>
                     <div className={`rounded-lg p-2 text-center ${calc.incoterm === "CIF" ? "bg-emerald-100 dark:bg-emerald-900/40 ring-1 ring-emerald-400" : "bg-slate-50 dark:bg-slate-700"}`}>
-                      <p className="text-[10px] text-muted-foreground">Preço CIF/ton</p>
+                      <p className="text-[10px] text-muted-foreground">Preço CIF/{unit}</p>
                       <p className="font-bold text-sm text-emerald-700 dark:text-emerald-300">{fmtU(calcResult.precoCIF)}</p>
                     </div>
                     <div className="rounded-lg p-2 text-center bg-slate-50 dark:bg-slate-700">
@@ -619,7 +623,7 @@ function QuotationForm({ editQuotation, onSuccess }: { editQuotation: QuotationW
                     </div>
                   </div>
                   <p className="text-[11px] text-blue-600 dark:text-blue-400 mt-2 text-center font-medium">
-                    ↳ Preço {calc.incoterm} aplicado automaticamente: {fmtU(calcResult.unitPrice)}/ton · Margem: {calcResult.margemPct.toFixed(1)}%
+                    ↳ Preço {calc.incoterm} aplicado automaticamente: {fmtU(calcResult.unitPrice)}/{unit} · Margem: {calcResult.margemPct.toFixed(1)}%
                   </p>
                 </div>
               )}
@@ -630,9 +634,22 @@ function QuotationForm({ editQuotation, onSuccess }: { editQuotation: QuotationW
         <div className="grid grid-cols-2 gap-3">
           <FormField control={form.control} name="unitPrice" render={({ field }) => (
             <FormItem>
-              <FormLabel>Preço Unitário (USD/ton)</FormLabel>
+              <FormLabel className="flex items-center gap-1.5">
+                Preço de Venda (USD/{unit})
+                {showCalc && calcResult && (
+                  <span className="text-[10px] font-normal text-blue-500 bg-blue-50 dark:bg-blue-950 px-1.5 py-0.5 rounded">calculado</span>
+                )}
+              </FormLabel>
               <FormControl>
-                <Input type="number" step="0.01" value={field.value} onChange={(e) => onUnitPriceChange(e.target.value)} data-testid="input-quotation-price" />
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={field.value}
+                  onChange={(e) => onUnitPriceChange(e.target.value)}
+                  readOnly={showCalc && !!calcResult}
+                  className={showCalc && calcResult ? "bg-muted cursor-default" : ""}
+                  data-testid="input-quotation-price"
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -665,6 +682,7 @@ function QuotationForm({ editQuotation, onSuccess }: { editQuotation: QuotationW
           clientsList={clientsList}
           productsList={productsList}
           calcBreakdown={calcResult}
+          unit={unit}
         />
 
         <div className="grid grid-cols-2 gap-3">
@@ -955,8 +973,8 @@ async function downloadQuotationPDF(q: QuotationWithDetails) {
   // Pricing section
   sectionTitle("Valores e Condicoes");
   const thirdW = (W - 30) / 3;
-  infoCard(12, thirdW, "Preco Unitario", `${fmt(unitNum)}/ton`);
-  infoCard(14 + thirdW, thirdW, "Quantidade", `${q.quantity} toneladas`);
+  infoCard(12, thirdW, "Preco Unitario", `${fmt(unitNum)}/${q.product.unidade || "un"}`);
+  infoCard(14 + thirdW, thirdW, "Quantidade", `${q.quantity} ${q.product.unidade || "un"}`);
   infoCard(16 + 2 * thirdW, thirdW, "Cond. Pagamento", q.paymentTerms || "—");
   y += 22;
 
@@ -971,7 +989,7 @@ async function downloadQuotationPDF(q: QuotationWithDetails) {
   doc.text("VALOR TOTAL DA COTACAO", 20, y + 8);
   doc.setTextColor(180, 205, 230);
   doc.setFontSize(6.5);
-  doc.text(`${q.quantity} ton x ${fmt(unitNum)}`, 20, y + 14);
+  doc.text(`${q.quantity} ${q.product.unidade || "un"} x ${fmt(unitNum)}`, 20, y + 14);
   doc.setTextColor(...GOLD);
   doc.setFontSize(18);
   doc.setFont("helvetica", "bold");
@@ -1043,7 +1061,7 @@ function buildMessage(q: QuotationWithDetails): string {
     `Cliente: ${q.client.name}`,
     `Produto: ${q.product.type} - ${q.product.grammage}g/m2`,
     `Preco Unitario: ${formatCurrency(q.unitPrice)}`,
-    `Quantidade: ${q.quantity} ton`,
+    `Quantidade: ${q.quantity} ${q.product.unidade || "un"}`,
     `Total: ${formatCurrency(q.total)}`,
   ];
   if (q.paymentTerms) lines.push(`Condicoes de Pagamento: ${q.paymentTerms}`);
@@ -1146,7 +1164,7 @@ function KanbanCardDetail({
             <p className="font-semibold text-base">{quotation.product.type} — {quotation.product.grammage}</p>
             <div className="grid grid-cols-2 gap-1 text-muted-foreground">
               <span>Preço unit.:</span><span className="text-foreground font-medium">{formatCurrency(quotation.unitPrice)}</span>
-              <span>Quantidade:</span><span className="text-foreground font-medium">{quotation.quantity} ton</span>
+              <span>Quantidade:</span><span className="text-foreground font-medium">{quotation.quantity} {quotation.product.unidade || "un"}</span>
               <span>Total:</span><span className="text-foreground font-bold text-primary">{formatCurrency(quotation.total)}</span>
               {quotation.paymentTerms && <><span>Pagamento:</span><span className="text-foreground">{quotation.paymentTerms}</span></>}
               {quotation.validityDate && <><span>Validade:</span><span className="text-foreground">{formatDate(quotation.validityDate)}</span></>}
@@ -1327,7 +1345,7 @@ function KanbanView({
                         {/* Total */}
                         <div className="flex items-center justify-between">
                           <span className="text-sm font-bold text-primary">{formatCurrency(q.total)}</span>
-                          <span className="text-xs text-muted-foreground">{q.quantity} ton</span>
+                          <span className="text-xs text-muted-foreground">{q.quantity} {q.product.unidade || "un"}</span>
                         </div>
                         {/* Footer */}
                         {q.validityDate && (
@@ -1531,7 +1549,7 @@ export default function Quotations() {
                 <TableHead>Produto</TableHead>
                 <TableHead>Fornecedor</TableHead>
                 <TableHead className="text-right">Preco Unit.</TableHead>
-                <TableHead className="text-right">Qtd (ton)</TableHead>
+                <TableHead className="text-right">Qtd</TableHead>
                 <TableHead className="text-right">Total</TableHead>
                 <TableHead>Validade</TableHead>
                 <TableHead>Status</TableHead>
