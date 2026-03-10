@@ -287,6 +287,7 @@ interface CalcFields {
   freteInternacional: string;
   taxaCambio: string;
   despesasAduaneiras: string;
+  margemLucro: string;
   incoterm: "FOB" | "CIF";
 }
 
@@ -313,19 +314,22 @@ function calcExportPrice(c: CalcFields, qty: number): CalcBreakdown | null {
   const fintl = parseFloat(c.freteInternacional.replace(",", ".")) || 0;
   const desp = parseFloat(c.despesasAduaneiras.replace(",", ".")) || 0;
   const peso = parseFloat(c.pesoUnitario.replace(",", ".")) || 0;
+  const margemLucro = parseFloat(c.margemLucro.replace(",", ".")) || 0;
 
   if (!custo || custo <= 0 || !tc || tc <= 0 || qty <= 0) return null;
 
   const custoFabUSD = (custo * qty) / tc;
   const fiUSD = fi / tc;
   const despUSD = custoFabUSD * (desp / 100);
-  const precoFOBTotal = custoFabUSD + fiUSD + despUSD;
-  const seguro = precoFOBTotal * 0.002;
-  const precoCIFTotal = precoFOBTotal + fintl + seguro;
-  const total = c.incoterm === "CIF" ? precoCIFTotal : precoFOBTotal;
+  const custoFOB = custoFabUSD + fiUSD + despUSD;
+  const seguro = custoFOB * 0.002;
+  const custoCIF = custoFOB + fintl + seguro;
+  const custoBase = c.incoterm === "CIF" ? custoCIF : custoFOB;
+
+  const divisor = margemLucro > 0 && margemLucro < 100 ? (1 - margemLucro / 100) : 1;
+  const total = custoBase / divisor;
   const unitP = qty > 0 ? total / qty : 0;
-  const custoTotal = c.incoterm === "CIF" ? custoFabUSD + fiUSD + despUSD + fintl + seguro : custoFabUSD + fiUSD + despUSD;
-  const lucro = total - custoTotal;
+  const lucro = total - custoBase;
   const margem = total > 0 ? (lucro / total) * 100 : 0;
 
   const pesoTotal = qty * peso;
@@ -333,17 +337,20 @@ function calcExportPrice(c: CalcFields, qty: number): CalcBreakdown | null {
   if (pesoTotal >= 26500) container = "FCL 40'";
   else if (pesoTotal >= 5000) container = "FCL 20'";
 
+  const precoFOBBase = custoFOB / qty;
+  const precoCIFBase = custoCIF / qty;
+
   return {
     custoMaterialUSD: custoFabUSD,
     freteInternoUSD: fiUSD,
     freteInternacionalUSD: fintl,
     despesasAduaneirasUSD: despUSD,
     seguroUSD: seguro,
-    totalCustosUSD: custoTotal,
+    totalCustosUSD: custoBase,
     incoterm: c.incoterm,
     unitPrice: unitP,
-    precoFOB: precoFOBTotal / qty,
-    precoCIF: precoCIFTotal / qty,
+    precoFOB: precoFOBBase,
+    precoCIF: precoCIFBase,
     container,
     lucroUSD: lucro,
     margemPct: margem,
@@ -358,7 +365,7 @@ function QuotationForm({ editQuotation, onSuccess }: { editQuotation: QuotationW
   const [showCalc, setShowCalc] = useState(!editQuotation);
   const [calc, setCalc] = useState<CalcFields>({
     moedaLocal: "BRL", custoUnitario: "", pesoUnitario: "", freteInterno: "",
-    freteInternacional: "", taxaCambio: "", despesasAduaneiras: "2", incoterm: "FOB",
+    freteInternacional: "", taxaCambio: "", despesasAduaneiras: "2", margemLucro: "20", incoterm: "FOB",
   });
 
   const form = useForm<InsertQuotation>({
@@ -611,7 +618,7 @@ function QuotationForm({ editQuotation, onSuccess }: { editQuotation: QuotationW
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="text-xs text-muted-foreground font-medium">Frete interno ({calc.moedaLocal})</label>
                   <Input className="h-8 text-xs" type="number" min={0} placeholder="0,00" value={calc.freteInterno} onChange={(e) => setC("freteInterno", e.target.value)} data-testid="calc-input-fi-form" />
@@ -620,9 +627,16 @@ function QuotationForm({ editQuotation, onSuccess }: { editQuotation: QuotationW
                   <label className="text-xs text-muted-foreground font-medium">Frete internacional (USD)</label>
                   <Input className="h-8 text-xs" type="number" min={0} placeholder="0,00" value={calc.freteInternacional} onChange={(e) => setC("freteInternacional", e.target.value)} data-testid="calc-input-fintl-form" />
                 </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="text-xs text-muted-foreground font-medium">Desp. aduaneiras (%)</label>
                   <Input className="h-8 text-xs" type="number" min={0} max={50} placeholder="2" value={calc.despesasAduaneiras} onChange={(e) => setC("despesasAduaneiras", e.target.value)} data-testid="calc-input-desp-form" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">Margem de Lucro (%)</label>
+                  <Input className="h-8 text-xs border-emerald-300 dark:border-emerald-700 focus:ring-emerald-400" type="number" min={0} max={99} placeholder="20" value={calc.margemLucro} onChange={(e) => setC("margemLucro", e.target.value)} data-testid="calc-input-margem-form" />
                 </div>
               </div>
 
