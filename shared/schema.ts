@@ -59,6 +59,7 @@ export const products = pgTable("products", {
   grammage: text("grammage").notNull(),
   unidade: productUnidadeEnum("unidade").notNull().default("caixa"),
   standardPrice: numeric("standard_price", { precision: 10, scale: 2 }).notNull(),
+  pesoUnitario: numeric("peso_unitario", { precision: 10, scale: 3 }),
   supplierId: integer("supplier_id"),
 });
 

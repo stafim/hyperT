@@ -24,6 +24,7 @@ const productFormSchema = z.object({
   grammage: z.string().min(1, "Gramatura é obrigatória"),
   unidade: z.enum(["caixa", "resma"]),
   standardPrice: z.string().default("0"),
+  pesoUnitario: z.string().optional().nullable(),
   supplierId: z.number().optional().nullable(),
 });
 type ProductFormValues = z.infer<typeof productFormSchema>;
@@ -58,9 +59,10 @@ function ProductForm({ editProduct, suppliers, onSuccess }: { editProduct: Produ
           grammage: editProduct.grammage,
           unidade: (editProduct.unidade as "caixa" | "resma") ?? "caixa",
           standardPrice: editProduct.standardPrice,
+          pesoUnitario: (editProduct as any).pesoUnitario ?? "",
           supplierId: editProduct.supplierId ?? null,
         }
-      : { type: "", grammage: "", unidade: "caixa", standardPrice: "0", supplierId: null },
+      : { type: "", grammage: "", unidade: "caixa", standardPrice: "0", pesoUnitario: "", supplierId: null },
   });
 
   const mutation = useMutation({
@@ -119,13 +121,24 @@ function ProductForm({ editProduct, suppliers, onSuccess }: { editProduct: Produ
           )} />
         </div>
 
-        <FormField control={form.control} name="standardPrice" render={({ field }) => (
-          <FormItem>
-            <FormLabel>Preço Padrão por Unidade (USD)</FormLabel>
-            <FormControl><Input type="number" step="0.01" {...field} data-testid="input-product-price" /></FormControl>
-            <FormMessage />
-          </FormItem>
-        )} />
+        <div className="grid grid-cols-2 gap-4">
+          <FormField control={form.control} name="standardPrice" render={({ field }) => (
+            <FormItem>
+              <FormLabel>Preço Padrão por Unidade (USD)</FormLabel>
+              <FormControl><Input type="number" step="0.01" {...field} data-testid="input-product-price" /></FormControl>
+              <FormMessage />
+            </FormItem>
+          )} />
+          <FormField control={form.control} name="pesoUnitario" render={({ field }) => (
+            <FormItem>
+              <FormLabel>Peso por Unidade (kg)</FormLabel>
+              <FormControl>
+                <Input type="number" step="0.001" placeholder="Ex: 25.5" {...field} value={field.value ?? ""} data-testid="input-product-peso" />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )} />
+        </div>
 
         <FormField control={form.control} name="supplierId" render={({ field }) => (
           <FormItem>
@@ -279,6 +292,7 @@ export default function Products() {
                   <TableHead>Gramatura</TableHead>
                   <TableHead>Fornecedor</TableHead>
                   <TableHead className="text-right">Preço Padrão (USD/un.)</TableHead>
+                  <TableHead className="text-right">Peso/un. (kg)</TableHead>
                   <TableHead className="text-right w-[100px]">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -294,6 +308,7 @@ export default function Products() {
                       <TableCell className="text-muted-foreground">{product.grammage}</TableCell>
                       <TableCell className="text-muted-foreground">{supplier?.name || "—"}</TableCell>
                       <TableCell className="text-right font-mono tabular-nums">{formatCurrency(product.standardPrice)}</TableCell>
+                      <TableCell className="text-right text-muted-foreground">{(product as any).pesoUnitario ? `${parseFloat((product as any).pesoUnitario).toFixed(2)} kg` : "—"}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
                           <Button

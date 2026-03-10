@@ -1,4 +1,4 @@
-import { useState, Fragment } from "react";
+import { useState, useEffect, useRef, Fragment } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card, CardContent } from "@/components/ui/card";
@@ -385,6 +385,25 @@ function QuotationForm({ editQuotation, onSuccess }: { editQuotation: QuotationW
   const watchedProductId = form.watch("productId");
   const selectedProduct = productsList?.find((p) => p.id === watchedProductId);
   const unit = selectedProduct?.unidade || "un";
+
+  const prevProductIdRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!editQuotation && selectedProduct && selectedProduct.id !== prevProductIdRef.current) {
+      prevProductIdRef.current = selectedProduct.id;
+      const next: CalcFields = {
+        ...calc,
+        custoUnitario: selectedProduct.standardPrice ?? "",
+        pesoUnitario: (selectedProduct as any).pesoUnitario ?? "",
+      };
+      setCalc(next);
+      const qty = Number(form.getValues("quantity")) || 0;
+      const res = calcExportPrice(next, qty);
+      if (res) {
+        form.setValue("unitPrice", res.unitPrice.toFixed(2));
+        form.setValue("margem" as any, res.margemPct.toFixed(2));
+      }
+    }
+  }, [watchedProductId]);
 
   function setC(field: keyof CalcFields, value: string) {
     const next = { ...calc, [field]: value };
