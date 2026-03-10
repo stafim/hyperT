@@ -94,9 +94,8 @@ function CostRevenuePanel({
   const fmtU = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "USD" }).format(v);
 
   if (calcBreakdown) {
-    const { custoMaterialUSD, freteInternoUSD, freteInternacionalUSD, despesasAduaneirasUSD, seguroUSD, totalCustosUSD, incoterm } = calcBreakdown;
-    const lucroUSD = totalUsd - totalCustosUSD;
-    const margemPct = totalUsd > 0 ? (lucroUSD / totalUsd) * 100 : 0;
+    const { custoMaterialUSD, freteInternoUSD, freteInternacionalUSD, despesasAduaneirasUSD, seguroUSD, totalCustosUSD, incoterm, margemPct } = calcBreakdown;
+    const lucroUSD = totalCustosUSD * (margemPct / 100);
     const custosExportacao = freteInternoUSD + despesasAduaneirasUSD + (incoterm === "CIF" ? freteInternacionalUSD + seguroUSD : 0);
     const pct = (val: number) => totalUsd > 0 ? ((val / totalUsd) * 100).toFixed(1) : "0.0";
 
@@ -326,11 +325,10 @@ function calcExportPrice(c: CalcFields, qty: number): CalcBreakdown | null {
   const custoCIF = custoFOB + fintl + seguro;
   const custoBase = c.incoterm === "CIF" ? custoCIF : custoFOB;
 
-  const divisor = margemLucro > 0 && margemLucro < 100 ? (1 - margemLucro / 100) : 1;
-  const total = custoBase / divisor;
+  const total = custoBase * (1 + margemLucro / 100);
   const unitP = qty > 0 ? total / qty : 0;
-  const lucro = total - custoBase;
-  const margem = total > 0 ? (lucro / total) * 100 : 0;
+  const lucro = custoBase * (margemLucro / 100);
+  const margem = margemLucro;
 
   const pesoTotal = qty * peso;
   let container = "LCL";
