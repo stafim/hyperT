@@ -382,21 +382,26 @@ function TrackingListRow({ order, onClick }: { order: OrderWithDetails; onClick:
     fundeado: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300",
   }[order.vesselStatus ?? ""] ?? "bg-slate-100 text-slate-600";
 
-  const borderColor = {
-    etd: "border-l-amber-400",
-    zarpou: "border-l-blue-500",
-    em_navegacao: "border-l-blue-600",
-    fundeado: "border-l-emerald-500",
-  }[order.vesselStatus ?? ""] ?? "border-l-slate-300";
+  const indicatorColor = {
+    etd: "bg-amber-400",
+    zarpou: "bg-blue-500",
+    em_navegacao: "bg-blue-600",
+    fundeado: "bg-emerald-500",
+  }[order.vesselStatus ?? ""] ?? "bg-slate-300";
 
   return (
     <tr
       onClick={onClick}
-      className={`border-l-4 ${borderColor} hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer transition-colors`}
+      className="hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer transition-colors"
     >
-      <td className="px-4 py-3">
-        <p className="font-semibold text-sm">{order.invoice}</p>
-        <p className="text-xs text-muted-foreground">{order.product.type} · {order.product.grammage}</p>
+      <td className={`pl-0 pr-4 py-3`}>
+        <div className="flex items-center gap-3">
+          <div className={`w-1 self-stretch rounded-full flex-shrink-0 ${indicatorColor}`} />
+          <div>
+            <p className="font-semibold text-sm">{order.invoice}</p>
+            <p className="text-xs text-muted-foreground">{order.product.type} · {order.product.grammage}</p>
+          </div>
+        </div>
       </td>
       <td className="px-4 py-3">
         <p className="text-sm font-medium">{order.client.name}</p>
@@ -545,7 +550,7 @@ export default function Rastreabilidade() {
 
   return (
     <div className="min-h-full bg-gradient-to-br from-slate-50 via-white to-blue-50/30 dark:from-slate-950 dark:via-slate-900 dark:to-blue-950/20">
-      <div className="p-6 space-y-6 max-w-7xl mx-auto">
+      <div className="p-6 space-y-6">
 
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
@@ -643,7 +648,7 @@ export default function Rastreabilidade() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Fatura / Produto</th>
+                  <th className="pl-4 pr-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Fatura / Produto</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Cliente</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Navio</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Status</th>
