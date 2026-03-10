@@ -589,7 +589,7 @@ function QuotationForm({ editQuotation, onSuccess }: { editQuotation: QuotationW
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground font-medium">Câmbio ({calc.moedaLocal}/USD)</label>
-                  <Input className="h-8 text-xs" type="number" min={0} placeholder="5,80" value={calc.taxaCambio} onChange={(e) => setC("taxaCambio", e.target.value)} data-testid="calc-input-cambio-form" />
+                  <Input className="h-8 text-xs" type="text" inputMode="decimal" placeholder="5,80" value={calc.taxaCambio} onChange={(e) => setC("taxaCambio", e.target.value)} data-testid="calc-input-cambio-form" />
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground font-medium">Incoterm</label>
@@ -608,33 +608,33 @@ function QuotationForm({ editQuotation, onSuccess }: { editQuotation: QuotationW
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="text-xs text-muted-foreground font-medium">Custo por {unit} ({calc.moedaLocal})</label>
-                  <Input className="h-8 text-xs" type="number" min={0} placeholder="0,00" value={calc.custoUnitario} onChange={(e) => setC("custoUnitario", e.target.value)} data-testid="calc-input-custo-form" />
+                  <Input className="h-8 text-xs" type="text" inputMode="decimal" placeholder="0,00" value={calc.custoUnitario} onChange={(e) => setC("custoUnitario", e.target.value)} data-testid="calc-input-custo-form" />
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground font-medium">Peso por {unit} (kg)</label>
-                  <Input className="h-8 text-xs" type="number" min={0} placeholder="ex: 25" value={calc.pesoUnitario} onChange={(e) => setC("pesoUnitario", e.target.value)} data-testid="calc-input-peso-form" />
+                  <Input className="h-8 text-xs" type="text" inputMode="decimal" placeholder="ex: 25" value={calc.pesoUnitario} onChange={(e) => setC("pesoUnitario", e.target.value)} data-testid="calc-input-peso-form" />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="text-xs text-muted-foreground font-medium">Frete interno ({calc.moedaLocal})</label>
-                  <Input className="h-8 text-xs" type="number" min={0} placeholder="0,00" value={calc.freteInterno} onChange={(e) => setC("freteInterno", e.target.value)} data-testid="calc-input-fi-form" />
+                  <Input className="h-8 text-xs" type="text" inputMode="decimal" placeholder="0,00" value={calc.freteInterno} onChange={(e) => setC("freteInterno", e.target.value)} data-testid="calc-input-fi-form" />
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground font-medium">Frete internacional (USD)</label>
-                  <Input className="h-8 text-xs" type="number" min={0} placeholder="0,00" value={calc.freteInternacional} onChange={(e) => setC("freteInternacional", e.target.value)} data-testid="calc-input-fintl-form" />
+                  <Input className="h-8 text-xs" type="text" inputMode="decimal" placeholder="0,00" value={calc.freteInternacional} onChange={(e) => setC("freteInternacional", e.target.value)} data-testid="calc-input-fintl-form" />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="text-xs text-muted-foreground font-medium">Desp. aduaneiras (%)</label>
-                  <Input className="h-8 text-xs" type="number" min={0} max={50} placeholder="2" value={calc.despesasAduaneiras} onChange={(e) => setC("despesasAduaneiras", e.target.value)} data-testid="calc-input-desp-form" />
+                  <Input className="h-8 text-xs" type="text" inputMode="decimal" placeholder="2" value={calc.despesasAduaneiras} onChange={(e) => setC("despesasAduaneiras", e.target.value)} data-testid="calc-input-desp-form" />
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">Margem de Lucro (%)</label>
-                  <Input className="h-8 text-xs border-emerald-300 dark:border-emerald-700 focus:ring-emerald-400" type="number" min={0} max={99} placeholder="20" value={calc.margemLucro} onChange={(e) => setC("margemLucro", e.target.value)} data-testid="calc-input-margem-form" />
+                  <Input className="h-8 text-xs border-emerald-300 dark:border-emerald-700 focus:ring-emerald-400" type="text" inputMode="decimal" placeholder="20" value={calc.margemLucro} onChange={(e) => setC("margemLucro", e.target.value)} data-testid="calc-input-margem-form" />
                 </div>
               </div>
 
