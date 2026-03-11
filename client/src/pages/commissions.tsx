@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -15,7 +16,8 @@ import {
   Search, Filter, Download, Percent, ChevronsUpDown,
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight
 } from "lucide-react";
-import type { PlatformUser } from "@shared/schema";
+import type { PlatformUser, ExportOrderWithDetails } from "@shared/schema";
+import OrderDetail from "@/components/order-detail";
 
 interface CommissionRow {
   orderId: number;
@@ -67,6 +69,12 @@ export default function Commissions() {
   const [filterStatus, setFilterStatus] = useState("devida");
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
+  const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
+
+  const { data: selectedOrder, isLoading: isLoadingOrder } = useQuery<ExportOrderWithDetails>({
+    queryKey: ["/api/orders", selectedOrderId],
+    enabled: selectedOrderId !== null,
+  });
 
   const { data: rows = [], isLoading } = useQuery<CommissionRow[]>({
     queryKey: ["/api/commissions"],
@@ -302,7 +310,13 @@ export default function Commissions() {
                 return (
                   <TableRow key={row.orderId} data-testid={`row-commission-${row.orderId}`} className={!hasCommission ? "opacity-50" : ""}>
                     <TableCell className="font-medium">
-                      <div>{row.invoice}</div>
+                      <button
+                        className="text-left hover:text-primary hover:underline transition-colors"
+                        onClick={() => setSelectedOrderId(row.orderId)}
+                        data-testid={`button-invoice-detail-${row.orderId}`}
+                      >
+                        {row.invoice}
+                      </button>
                       {row.embarqueDate && <div className="text-[11px] text-muted-foreground">{fmtDate(row.embarqueDate)}</div>}
                     </TableCell>
                     <TableCell>
@@ -439,6 +453,21 @@ export default function Commissions() {
         <p><span className="font-medium">Paga:</span> Comissão marcada como liquidada pelo gestor financeiro</p>
         <p><span className="font-medium">% de Comissão:</span> Configurado individualmente em Cadastros → Usuários</p>
       </div>
+
+      <Dialog open={selectedOrderId !== null} onOpenChange={(open) => { if (!open) setSelectedOrderId(null); }}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Detalhes da Ordem — {selectedOrder?.invoice ?? "..."}</DialogTitle>
+          </DialogHeader>
+          {isLoadingOrder ? (
+            <div className="space-y-3 py-4">
+              {[1,2,3,4,5].map(i => <Skeleton key={i} className="h-8 w-full" />)}
+            </div>
+          ) : selectedOrder ? (
+            <OrderDetail order={selectedOrder} />
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
