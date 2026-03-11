@@ -20,7 +20,6 @@ import {
   ArrowRight, ChevronDown, ChevronRight, Clock, Eye, TrendingUp, FileDown,
   LayoutGrid, List, StickyNote, User, X, ChevronUp, Calculator, Flame,
 } from "lucide-react";
-import { QuotationCalculator } from "@/components/quotation-calculator";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { insertQuotationSchema, type QuotationWithDetails, type InsertQuotation, type Client, type Product, type Supplier, type QuotationSendLogEntry, type QuotationNote } from "@shared/schema";
 import { z } from "zod";
@@ -356,7 +355,7 @@ function calcExportPrice(c: CalcFields, qty: number): CalcBreakdown | null {
   };
 }
 
-function QuotationForm({ editQuotation, onSuccess }: { editQuotation: QuotationWithDetails | null; onSuccess: () => void }) {
+function QuotationForm({ editQuotation, onSuccess, calculatorMode }: { editQuotation: QuotationWithDetails | null; onSuccess: () => void; calculatorMode?: boolean }) {
   const { toast } = useToast();
   const { currentUser } = useCurrentUser();
   const { data: clientsList } = useQuery<Client[]>({ queryKey: ["/api/clients"] });
@@ -810,9 +809,11 @@ function QuotationForm({ editQuotation, onSuccess }: { editQuotation: QuotationW
           )} />
         )}
 
-        <Button type="submit" className="w-full" disabled={mutation.isPending} data-testid="button-submit-quotation">
-          {mutation.isPending ? "Salvando..." : editQuotation ? "Atualizar" : "Criar Cotacao"}
-        </Button>
+        {!calculatorMode && (
+          <Button type="submit" className="w-full" disabled={mutation.isPending} data-testid="button-submit-quotation">
+            {mutation.isPending ? "Salvando..." : editQuotation ? "Atualizar" : "Criar Cotacao"}
+          </Button>
+        )}
       </form>
     </Form>
   );
@@ -1735,7 +1736,14 @@ export default function Quotations() {
       </div>
 
       {viewMode === "calculadora" && (
-        <QuotationCalculator />
+        <div className="max-w-2xl mx-auto">
+          <QuotationForm
+            key="calculator-mode"
+            editQuotation={null}
+            onSuccess={() => {}}
+            calculatorMode
+          />
+        </div>
       )}
 
       {viewMode !== "calculadora" && (
