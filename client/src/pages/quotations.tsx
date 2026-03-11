@@ -1377,6 +1377,20 @@ function KanbanView({
   onDelete: (id: number) => void;
 }) {
   const [selected, setSelected] = useState<QuotationWithDetails | null>(null);
+  const [draggingId, setDraggingId] = useState<number | null>(null);
+  const [dragOverCol, setDragOverCol] = useState<string | null>(null);
+  const { toast } = useToast();
+
+  const statusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: number; status: string }) =>
+      apiRequest("PATCH", `/api/quotations/${id}`, { status }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/quotations"] });
+    },
+    onError: () => {
+      toast({ title: "Erro ao mover cotação", variant: "destructive" });
+    },
+  });
 
   return (
     <>
@@ -1385,10 +1399,27 @@ function KanbanView({
           {KANBAN_COLUMNS.map((col) => {
             const cards = list.filter((q) => q.status === col.key);
             const colTotal = cards.reduce((s, q) => s + parseFloat(q.total), 0);
+            const isOver = dragOverCol === col.key;
             return (
-              <div key={col.key} className="flex flex-col w-72 shrink-0">
+              <div
+                key={col.key}
+                className="flex flex-col w-72 shrink-0"
+                onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setDragOverCol(col.key); }}
+                onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverCol(null); }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDragOverCol(null);
+                  if (draggingId !== null) {
+                    const card = list.find((q) => q.id === draggingId);
+                    if (card && card.status !== col.key) {
+                      statusMutation.mutate({ id: draggingId, status: col.key });
+                    }
+                  }
+                  setDraggingId(null);
+                }}
+              >
                 {/* Column header */}
-                <div className={`rounded-t-lg border-t-4 ${col.headerBg} bg-muted/40 dark:bg-muted/20 p-3 flex items-center justify-between mb-2`}>
+                <div className={`rounded-t-lg border-t-4 ${col.headerBg} p-3 flex items-center justify-between mb-2 transition-colors ${isOver ? "bg-muted/70 dark:bg-muted/40" : "bg-muted/40 dark:bg-muted/20"}`}>
                   <div className="flex items-center gap-2">
                     <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${col.color}`}>{col.label}</span>
                     <span className="text-xs text-muted-foreground bg-background border rounded-full w-5 h-5 flex items-center justify-center font-medium">{cards.length}</span>
@@ -1398,42 +1429,56 @@ function KanbanView({
                   )}
                 </div>
 
-                {/* Cards */}
-                <div className="space-y-2 flex-1">
+                {/* Cards drop zone */}
+                <div className={`space-y-2 flex-1 rounded-b-lg min-h-[80px] p-1 transition-colors ${isOver ? "bg-primary/5 ring-1 ring-inset ring-primary/20" : ""}`}>
                   {cards.length === 0 ? (
-                    <div className="rounded-lg border-2 border-dashed border-muted p-4 text-center text-xs text-muted-foreground">
-                      Sem cotações
+                    <div className={`rounded-lg border-2 border-dashed p-4 text-center text-xs transition-colors ${isOver ? "border-primary/50 text-primary bg-primary/5" : "border-muted text-muted-foreground"}`}>
+                      {isOver ? "Soltar aqui" : "Sem cotações"}
                     </div>
                   ) : (
-                    cards.map((q) => (
-                      <div
-                        key={q.id}
-                        className="rounded-lg border bg-card hover:shadow-md hover:border-primary/30 transition-all cursor-pointer p-3 space-y-2"
-                        onClick={() => setSelected(q)}
-                        data-testid={`kanban-card-${q.id}`}
-                      >
-                        {/* Client */}
-                        <div className="flex items-center gap-1.5">
-                          <User className="h-3.5 w-3.5 text-blue-500 shrink-0" />
-                          <span className="font-semibold text-sm truncate">{q.client.name}</span>
-                          <span className="text-xs text-muted-foreground shrink-0">({q.client.country})</span>
-                        </div>
-                        {/* Product */}
-                        <p className="text-xs text-muted-foreground truncate">{q.product.type} — {q.product.grammage}</p>
-                        {/* Total */}
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-bold text-primary">{formatCurrency(q.total)}</span>
-                          <span className="text-xs text-muted-foreground">{q.quantity} {q.product.unidade || "un"}</span>
-                        </div>
-                        {/* Footer */}
-                        {q.validityDate && (
-                          <div className="flex items-center gap-1 text-xs text-muted-foreground border-t pt-1.5">
-                            <Clock className="h-3 w-3" />
-                            <span>Val: {formatDate(q.validityDate)}</span>
+                    <>
+                      {cards.map((q) => (
+                        <div
+                          key={q.id}
+                          draggable
+                          onDragStart={(e) => {
+                            setDraggingId(q.id);
+                            e.dataTransfer.effectAllowed = "move";
+                            e.dataTransfer.setData("text/plain", String(q.id));
+                          }}
+                          onDragEnd={() => { setDraggingId(null); setDragOverCol(null); }}
+                          onClick={() => setSelected(q)}
+                          className={`rounded-lg border bg-card hover:shadow-md hover:border-primary/30 transition-all p-3 space-y-2 select-none ${draggingId === q.id ? "opacity-40 cursor-grabbing shadow-lg" : "cursor-grab"}`}
+                          data-testid={`kanban-card-${q.id}`}
+                        >
+                          {/* Client */}
+                          <div className="flex items-center gap-1.5">
+                            <User className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                            <span className="font-semibold text-sm truncate">{q.client.name}</span>
+                            <span className="text-xs text-muted-foreground shrink-0">({q.client.country})</span>
                           </div>
-                        )}
-                      </div>
-                    ))
+                          {/* Product */}
+                          <p className="text-xs text-muted-foreground truncate">{q.product.type} — {q.product.grammage}</p>
+                          {/* Total */}
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-bold text-primary">{formatCurrency(q.total)}</span>
+                            <span className="text-xs text-muted-foreground">{q.quantity} {q.product.unidade || "un"}</span>
+                          </div>
+                          {/* Footer */}
+                          {q.validityDate && (
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground border-t pt-1.5">
+                              <Clock className="h-3 w-3" />
+                              <span>Val: {formatDate(q.validityDate)}</span>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                      {isOver && (
+                        <div className="rounded-lg border-2 border-dashed border-primary/50 bg-primary/5 p-3 text-center text-xs text-primary">
+                          Soltar aqui
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
