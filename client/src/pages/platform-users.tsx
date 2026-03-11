@@ -13,19 +13,21 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Search, Pencil, Trash2, UserCog, Mail, Phone, Building2, Shield, Eye, Percent } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, UserCog, Mail, Phone, Building2, Shield, Eye, Percent, UserCheck } from "lucide-react";
 import { insertPlatformUserSchema, type PlatformUser, type InsertPlatformUser } from "@shared/schema";
 
 const roleLabels: Record<string, { label: string; color: string }> = {
   admin:        { label: "Admin",        color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300" },
   operador:     { label: "Operador",     color: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300" },
   visualizador: { label: "Visualizador", color: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300" },
+  vendedor:     { label: "Vendedor",     color: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300" },
 };
 
 const roleIcons: Record<string, React.ReactNode> = {
   admin:        <Shield className="h-3 w-3" />,
   operador:     <UserCog className="h-3 w-3" />,
   visualizador: <Eye className="h-3 w-3" />,
+  vendedor:     <UserCheck className="h-3 w-3" />,
 };
 
 function UserForm({ editUser, onSuccess }: { editUser: PlatformUser | null; onSuccess: () => void }) {
@@ -103,6 +105,7 @@ function UserForm({ editUser, onSuccess }: { editUser: PlatformUser | null; onSu
                   <SelectItem value="admin">Admin — acesso total</SelectItem>
                   <SelectItem value="operador">Operador — criar e editar</SelectItem>
                   <SelectItem value="visualizador">Visualizador — somente leitura</SelectItem>
+                  <SelectItem value="vendedor">Vendedor — acesso comercial</SelectItem>
                 </SelectContent>
               </Select>
               <FormMessage />
@@ -204,6 +207,7 @@ export default function PlatformUsers() {
     admin:        users?.filter((u) => u.role === "admin").length ?? 0,
     operador:     users?.filter((u) => u.role === "operador").length ?? 0,
     visualizador: users?.filter((u) => u.role === "visualizador").length ?? 0,
+    vendedor:     users?.filter((u) => u.role === "vendedor").length ?? 0,
   };
 
   function openNew() { setEditUser(null); setFormOpen(true); }
@@ -252,6 +256,13 @@ export default function PlatformUsers() {
             <p className="text-xs text-muted-foreground">somente leitura</p>
           </CardContent>
         </Card>
+        <Card className="cursor-pointer hover:bg-muted/40 transition-colors" onClick={() => setRoleFilter("vendedor")}>
+          <CardContent className="pt-3 pb-3">
+            <p className="text-xs text-muted-foreground flex items-center gap-1"><UserCheck className="h-3 w-3 text-green-500" />Vendedores</p>
+            <p className="text-2xl font-bold mt-0.5 text-green-600 dark:text-green-400">{counts.vendedor}</p>
+            <p className="text-xs text-muted-foreground">acesso comercial</p>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">
@@ -273,6 +284,7 @@ export default function PlatformUsers() {
             <SelectItem value="admin">Admin</SelectItem>
             <SelectItem value="operador">Operador</SelectItem>
             <SelectItem value="visualizador">Visualizador</SelectItem>
+            <SelectItem value="vendedor">Vendedor</SelectItem>
           </SelectContent>
         </Select>
       </div>
