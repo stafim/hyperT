@@ -44,7 +44,7 @@ shared/
 ```
 
 ## Database Schema
-- **platform_users**: name, email, role (admin/operador/visualizador), status (ativo/inativo), phone, department, comissaoPct (numeric % commission per seller)
+- **platform_users**: name, email, role (admin/operador/visualizador/vendedor), status (ativo/inativo), phone, department, comissaoPct, cpf, rg, dataNascimento, endereco, cidade, estado, cep, passwordHash
 - **commission_records**: orderId (unique FK), status (prevista/devida/paga), paidAt, notes
 - **suppliers**: name, cnpj, contact, phone, email, city, state
 - **clients**: name, country, creditLimit, paymentTerms, email, phone, responsavel, registroNacional (CUIT/RUC/RUT), address, city, state, zipCode, notes
@@ -97,6 +97,14 @@ shared/
   - Finance team can mark commissions as "Paga" or revert; CSV export
   - comissaoPct configured per user in Cadastros → Usuários
   - Seller identified by `criadoPor` field on the order matched to platform_users.name
+- **Vendedores (/vendedores)**: Full seller management page under Cadastros menu
+  - Sellers are `platform_users` with role = "vendedor" (new role value added to enum)
+  - Full personal data fields: CPF (masked), RG, data de nascimento, telefone (masked), endereço completo (rua, cidade, estado dropdown, CEP masked)
+  - Cargo/Departamento + % Comissão (wired directly into commission report)
+  - Login credentials: email as login, password set/changed by admin (bcrypt hashed, stored as passwordHash)
+  - Password visible in table as "Configurada" / "Não definida" indicator (never exposed)
+  - Search by name, email or CPF; create/edit/delete with confirmation dialog
+  - Routes: GET/POST/PATCH/DELETE `/api/vendedores` (filters/enforces role = "vendedor")
 - **Creator tracking**: `criadoPor` field on quotations and orders records which platform user created each record; sidebar user selector persists in localStorage
 - Reports section with two tabs:
   - **Exportações**: expandable order details, full audit history timeline with field-level diffs

@@ -3,7 +3,7 @@ import { pgTable, text, varchar, integer, numeric, date, timestamp, pgEnum, json
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-export const userRoleEnum = pgEnum("user_role", ["admin", "operador", "visualizador"]);
+export const userRoleEnum = pgEnum("user_role", ["admin", "operador", "visualizador", "vendedor"]);
 export const userStatusEnum = pgEnum("user_status", ["ativo", "inativo"]);
 export const commissionStatusEnum = pgEnum("commission_status", ["prevista", "devida", "paga"]);
 export const productUnidadeEnum = pgEnum("product_unidade", ["caixa", "resma"]);
@@ -152,6 +152,14 @@ export const platformUsers = pgTable("platform_users", {
   phone: text("phone"),
   department: text("department"),
   comissaoPct: numeric("comissao_pct", { precision: 5, scale: 2 }).notNull().default("0"),
+  cpf: text("cpf"),
+  rg: text("rg"),
+  dataNascimento: date("data_nascimento"),
+  endereco: text("endereco"),
+  cidade: text("cidade"),
+  estado: text("estado"),
+  cep: text("cep"),
+  passwordHash: text("password_hash"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

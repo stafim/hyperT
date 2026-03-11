@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { isTelegramConfigured, sendTelegramMessage, buildDailyReport, buildVencimentosAlert, buildLpcoAlert, notifyNewClient, notifyNewSupplier, notifyNewProduct, notifyNewQuotation, notifyNewOrder, sendTelegramAudio, sendTelegramAudioPro } from "./telegram";
 import { insertClientSchema, insertClientDocumentSchema, insertProductSchema, insertSupplierSchema, insertQuotationSchema, insertPlatformUserSchema, insertShipmentTrackingSchema } from "@shared/schema";
+import bcrypt from "bcryptjs";
 import OpenAI from "openai";
 import { registerPortalRoutes } from "./portal-routes";
 import multer from "multer";
@@ -416,6 +417,70 @@ export async function registerRoutes(
   app.delete("/api/platform-users/:id", async (req, res) => {
     await storage.deletePlatformUser(Number(req.params.id));
     res.status(204).end();
+  });
+
+  // Vendedores (platform_users with role = "vendedor")
+  app.get("/api/vendedores", async (_req, res) => {
+    try {
+      const users = await storage.getPlatformUsers();
+      res.json(users.filter((u) => u.role === "vendedor"));
+    } catch (err) {
+      res.status(500).json({ message: "Erro ao buscar vendedores" });
+    }
+  });
+
+  app.post("/api/vendedores", async (req, res) => {
+    try {
+      const { password, ...rest } = req.body;
+      if (!rest.name || !rest.email) {
+        return res.status(400).json({ message: "Nome e email são obrigatórios" });
+      }
+      const passwordHash = password ? await bcrypt.hash(password, 12) : null;
+      const user = await storage.createPlatformUser({
+        name: rest.name,
+        email: rest.email,
+        role: "vendedor",
+        status: rest.status ?? "ativo",
+        phone: rest.phone ?? null,
+        department: rest.department ?? null,
+        comissaoPct: rest.comissaoPct ?? "0",
+        cpf: rest.cpf ?? null,
+        rg: rest.rg ?? null,
+        dataNascimento: rest.dataNascimento ?? null,
+        endereco: rest.endereco ?? null,
+        cidade: rest.cidade ?? null,
+        estado: rest.estado ?? null,
+        cep: rest.cep ?? null,
+        passwordHash,
+      });
+      res.status(201).json(user);
+    } catch (err) {
+      res.status(500).json({ message: "Erro ao criar vendedor" });
+    }
+  });
+
+  app.patch("/api/vendedores/:id", async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const { password, ...rest } = req.body;
+      const updates: Record<string, unknown> = { ...rest, role: "vendedor" };
+      if (password) {
+        updates.passwordHash = await bcrypt.hash(password, 12);
+      }
+      const user = await storage.updatePlatformUser(id, updates as any);
+      res.json(user);
+    } catch (err) {
+      res.status(500).json({ message: "Erro ao atualizar vendedor" });
+    }
+  });
+
+  app.delete("/api/vendedores/:id", async (req, res) => {
+    try {
+      await storage.deletePlatformUser(Number(req.params.id));
+      res.status(204).end();
+    } catch (err) {
+      res.status(500).json({ message: "Erro ao excluir vendedor" });
+    }
   });
 
   // Commission Reports
