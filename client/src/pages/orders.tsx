@@ -395,6 +395,7 @@ export default function Orders() {
                         <td className="p-3">
                           <div>{order.client?.name || "-"}</div>
                           {order.criadoPor && <div className="text-[11px] text-muted-foreground">por {order.criadoPor}</div>}
+                          {(order as any).vendedor && <div className="text-[11px] text-primary font-medium">{(order as any).vendedor}</div>}
                         </td>
                         <td className="p-3">{order.client?.country || "-"}</td>
                         <td className="p-3 max-w-[120px] truncate">{order.product?.type || "-"}</td>

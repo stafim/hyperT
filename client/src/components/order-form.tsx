@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { Button } from "@/components/ui/button";
@@ -43,6 +43,7 @@ interface OrderFormData {
   exchangeClose: string;
   statusPagamento: "pendente" | "pago" | "atrasado";
   vesselStatus: "zarpou" | "etd" | "em_navegacao" | "fundeado" | "none";
+  vendedor: string;
 }
 
 export default function OrderForm({
@@ -62,6 +63,10 @@ export default function OrderForm({
 }) {
   const { toast } = useToast();
   const { currentUser } = useCurrentUser();
+
+  const { data: vendedores = [] } = useQuery<{ id: number; name: string }[]>({
+    queryKey: ["/api/vendedores"],
+  });
 
   const form = useForm<OrderFormData>({
     defaultValues: editOrder
@@ -91,6 +96,7 @@ export default function OrderForm({
           exchangeClose: editOrder.exchangeClose || "",
           statusPagamento: editOrder.statusPagamento,
           vesselStatus: (editOrder.vesselStatus as any) || "none",
+          vendedor: (editOrder as any).vendedor || "",
         }
       : {
           quotationId: quotationPrefill?.quotationId || null,
@@ -118,6 +124,7 @@ export default function OrderForm({
           exchangeClose: "",
           statusPagamento: "pendente",
           vesselStatus: "none",
+          vendedor: "",
         },
   });
 
@@ -164,6 +171,7 @@ export default function OrderForm({
         exchangeClose: data.exchangeClose ? String(data.exchangeClose) : null,
         statusPagamento: data.statusPagamento,
         vesselStatus: (!data.vesselStatus || data.vesselStatus === "none") ? null : data.vesselStatus,
+        vendedor: data.vendedor || null,
       };
 
       if (!editOrder) {
@@ -232,6 +240,23 @@ export default function OrderForm({
                     <SelectItem value="none">Nenhum</SelectItem>
                     {suppliers.map((s) => (
                       <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )} />
+            <FormField control={form.control} name="vendedor" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Vendedor</FormLabel>
+                <Select onValueChange={(v) => field.onChange(v === "none" ? "" : v)} value={field.value || "none"}>
+                  <FormControl>
+                    <SelectTrigger data-testid="select-order-vendedor"><SelectValue placeholder="Selecionar vendedor" /></SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhum</SelectItem>
+                    {vendedores.map((v) => (
+                      <SelectItem key={v.id} value={v.name}>{v.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

@@ -130,6 +130,7 @@ export const exportOrders = pgTable("export_orders", {
   vesselStatus: text("vessel_status"),
   notificacoesAtivas: boolean("notificacoes_ativas").notNull().default(false),
   criadoPor: text("criado_por"),
+  vendedor: text("vendedor"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

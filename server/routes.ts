@@ -497,7 +497,8 @@ export async function registerRoutes(
       const today = new Date();
 
       const result = orders.map((order) => {
-        const seller = users.find((u) => u.name === order.criadoPor);
+        const sellerName = (order as any).vendedor || order.criadoPor;
+        const seller = users.find((u) => u.name === sellerName);
         const comissaoPct = seller ? parseFloat(seller.comissaoPct ?? "0") : 0;
         const totalUSD = parseFloat(String(order.total)) || 0;
         const exchangeRate = parseFloat(String(order.exchangeClose ?? "0")) || 0;
@@ -522,7 +523,7 @@ export async function registerRoutes(
         return {
           orderId: order.id,
           invoice: order.invoice,
-          vendedor: order.criadoPor ?? "—",
+          vendedor: (order as any).vendedor || order.criadoPor || "—",
           cliente: order.client?.name ?? "—",
           pais: order.client?.country ?? "—",
           produto: order.product?.type ?? "—",

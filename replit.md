@@ -52,7 +52,7 @@ shared/
 - **products**: type, grammage, unidade (caixa|resma), standardPrice, supplierId (FK to suppliers)
 - **quotations**: clientId, productId, supplierId, unitPrice, quantity, total, paymentTerms, validityDate, notes, status (rascunho/enviada/aceita/recusada/convertida), criadoPor (text, seller name)
 - **quotation_send_log**: quotationId, method (email/whatsapp), userName, recipientInfo, sentAt
-- **export_orders**: quotationId (FK), invoice, factory, nfe, bookingCrt, dueNumber, parametrizacao, modal, vessel, dates, financial fields, supplierId (FK to suppliers), criadoPor (text, seller name)
+- **export_orders**: quotationId (FK), invoice, factory, nfe, bookingCrt, dueNumber, parametrizacao, modal, vessel, dates, financial fields, supplierId (FK to suppliers), criadoPor (text, who created), vendedor (text, assigned seller name)
 - **order_audit_log**: orderId, action (criação/alteração/exclusão), userName, changes (JSONB diff), snapshot (JSONB), createdAt
 
 ## Key Features

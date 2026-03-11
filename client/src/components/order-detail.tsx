@@ -296,6 +296,7 @@ export default function OrderDetail({ order }: { order: ExportOrderWithDetails }
           <DetailRow label="Cliente" value={order.client?.name} icon={User} />
           <DetailRow label="País" value={order.client?.country} icon={MapPin} />
           {order.criadoPor && <DetailRow label="Criado por" value={order.criadoPor} icon={User} />}
+          {(order as any).vendedor && <DetailRow label="Vendedor" value={(order as any).vendedor} icon={User} />}
           <DetailRow label="Produto" value={order.product?.type} icon={Package} />
           <DetailRow label="Gramatura" value={order.product?.grammage} />
           <DetailRow label="Fábrica" value={order.factory} />
