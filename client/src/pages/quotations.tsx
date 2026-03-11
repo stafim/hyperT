@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
@@ -1463,6 +1463,7 @@ export default function Quotations() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [formOpen, setFormOpen] = useState(false);
   const [editQuotation, setEditQuotation] = useState<QuotationWithDetails | null>(null);
+  const [sellConfirmQuotation, setSellConfirmQuotation] = useState<QuotationWithDetails | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<"table" | "kanban" | "calculadora">("table");
 
@@ -1670,11 +1671,7 @@ export default function Quotations() {
                             size="sm"
                             variant="default"
                             className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1"
-                            onClick={() => {
-                              if (confirm("Confirma a realizacao da venda? Uma ordem de exportacao sera criada automaticamente.")) {
-                                sellMutation.mutate(q);
-                              }
-                            }}
+                            onClick={() => setSellConfirmQuotation(q)}
                             disabled={sellMutation.isPending}
                             data-testid={`button-sell-quotation-${q.id}`}
                           >
@@ -1743,6 +1740,63 @@ export default function Quotations() {
       )}
       </>
       )}
+
+      <Dialog open={!!sellConfirmQuotation} onOpenChange={(open) => { if (!open) setSellConfirmQuotation(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/40">
+                <ArrowRight className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              Realizar Venda
+            </DialogTitle>
+            <DialogDescription className="pt-1">
+              Uma ordem de exportação será criada automaticamente a partir desta cotação.
+            </DialogDescription>
+          </DialogHeader>
+
+          {sellConfirmQuotation && (
+            <div className="rounded-lg border bg-muted/40 p-4 space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Cliente</span>
+                <span className="font-medium">{sellConfirmQuotation.client?.name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Produto</span>
+                <span className="font-medium">{sellConfirmQuotation.product?.type} — {sellConfirmQuotation.product?.grammage}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Quantidade</span>
+                <span className="font-medium">{sellConfirmQuotation.quantity} un.</span>
+              </div>
+              <div className="flex justify-between border-t pt-2 mt-1">
+                <span className="text-muted-foreground font-medium">Total</span>
+                <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                  {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number(sellConfirmQuotation.total))}
+                </span>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setSellConfirmQuotation(null)}>
+              Cancelar
+            </Button>
+            <Button
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              disabled={sellMutation.isPending}
+              onClick={() => {
+                if (sellConfirmQuotation) {
+                  sellMutation.mutate(sellConfirmQuotation);
+                  setSellConfirmQuotation(null);
+                }
+              }}
+            >
+              {sellMutation.isPending ? "Processando..." : "Confirmar Venda"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
