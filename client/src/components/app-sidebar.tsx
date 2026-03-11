@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, Package, FileText, CircleDollarSign, Factory, ClipboardList, FileCheck, CalendarClock, TrendingUp, UserCog, Globe, FolderLock, ShieldCheck, AlertTriangle, BrainCircuit, SlidersHorizontal, BellRing } from "lucide-react";
+import { LayoutDashboard, Users, Package, FileText, CircleDollarSign, Factory, ClipboardList, FileCheck, CalendarClock, TrendingUp, UserCog, Globe, FolderLock, ShieldCheck, AlertTriangle, BrainCircuit, SlidersHorizontal, BellRing, UserCircle2, ChevronDown } from "lucide-react";
 import logoPath from "@assets/Captura_de_tela_2026-02-27_111909_1772203458683.png";
 import { useLocation, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -15,6 +15,16 @@ import {
   SidebarFooter,
   useSidebar,
 } from "@/components/ui/sidebar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useCurrentUser } from "@/hooks/use-current-user";
+import type { PlatformUser } from "@shared/schema";
 
 const mainItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
@@ -103,6 +113,97 @@ function LpcoMenuItem({ location }: { location: string }) {
   );
 }
 
+function UserSelector({ collapsed }: { collapsed: boolean }) {
+  const { currentUser, users, selectUser } = useCurrentUser();
+
+  if (collapsed) {
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            className="flex items-center justify-center w-full p-1 rounded-md hover:bg-sidebar-accent transition-colors"
+            data-testid="button-user-selector"
+            title={currentUser ? currentUser.name : "Selecionar usuário"}
+          >
+            <UserCircle2 className={`h-5 w-5 ${currentUser ? "text-primary" : "text-muted-foreground"}`} />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent side="right" align="end" className="w-52">
+          <DropdownMenuLabel className="text-xs">Usuário ativo</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          {users.filter((u: PlatformUser) => u.status === "ativo").map((u: PlatformUser) => (
+            <DropdownMenuItem
+              key={u.id}
+              onClick={() => selectUser(u.id)}
+              className={currentUser?.id === u.id ? "font-semibold bg-primary/10" : ""}
+              data-testid={`option-user-${u.id}`}
+            >
+              {u.name}
+            </DropdownMenuItem>
+          ))}
+          {currentUser && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => selectUser(null)} className="text-muted-foreground text-xs">
+                Sair
+              </DropdownMenuItem>
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          className="flex items-center gap-2 w-full px-2 py-2 rounded-md hover:bg-sidebar-accent transition-colors text-left"
+          data-testid="button-user-selector"
+        >
+          <UserCircle2 className={`h-4 w-4 shrink-0 ${currentUser ? "text-primary" : "text-muted-foreground"}`} />
+          <div className="flex-1 min-w-0">
+            {currentUser ? (
+              <>
+                <p className="text-xs font-medium truncate leading-tight">{currentUser.name}</p>
+                <p className="text-[10px] text-muted-foreground truncate leading-tight capitalize">{currentUser.role}</p>
+              </>
+            ) : (
+              <p className="text-xs text-muted-foreground">Selecionar usuário</p>
+            )}
+          </div>
+          <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent side="top" align="start" className="w-52">
+        <DropdownMenuLabel className="text-xs">Usuário ativo</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {users.filter((u: PlatformUser) => u.status === "ativo").map((u: PlatformUser) => (
+          <DropdownMenuItem
+            key={u.id}
+            onClick={() => selectUser(u.id)}
+            className={currentUser?.id === u.id ? "font-semibold bg-primary/10" : ""}
+            data-testid={`option-user-${u.id}`}
+          >
+            <div>
+              <p className="text-sm">{u.name}</p>
+              <p className="text-xs text-muted-foreground capitalize">{u.role}</p>
+            </div>
+          </DropdownMenuItem>
+        ))}
+        {currentUser && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => selectUser(null)} className="text-muted-foreground text-xs">
+              Sair / Trocar usuário
+            </DropdownMenuItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 export function AppSidebar() {
   const [location] = useLocation();
   const { state } = useSidebar();
@@ -169,8 +270,9 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className={collapsed ? "p-1" : "p-4"}>
-        {!collapsed && <p className="text-xs text-sidebar-foreground/60">Hypertrade - ERP de Exportação</p>}
+      <SidebarFooter className={collapsed ? "p-1 space-y-1" : "p-3 space-y-2"}>
+        <UserSelector collapsed={collapsed} />
+        {!collapsed && <p className="text-[10px] text-sidebar-foreground/40 text-center">Hypertrade - ERP de Exportação</p>}
       </SidebarFooter>
     </Sidebar>
   );

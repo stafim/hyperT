@@ -76,6 +76,7 @@ export const quotations = pgTable("quotations", {
   validityDate: date("validity_date"),
   notes: text("notes"),
   status: quotationStatusEnum("status").notNull().default("rascunho"),
+  criadoPor: text("criado_por"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -127,6 +128,7 @@ export const exportOrders = pgTable("export_orders", {
   statusPagamento: statusPagamentoEnum("status_pagamento").notNull().default("pendente"),
   vesselStatus: text("vessel_status"),
   notificacoesAtivas: boolean("notificacoes_ativas").notNull().default(false),
+  criadoPor: text("criado_por"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useCurrentUser } from "@/hooks/use-current-user";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -60,6 +61,7 @@ export default function OrderForm({
   onSuccess: () => void;
 }) {
   const { toast } = useToast();
+  const { currentUser } = useCurrentUser();
 
   const form = useForm<OrderFormData>({
     defaultValues: editOrder
@@ -163,6 +165,10 @@ export default function OrderForm({
         statusPagamento: data.statusPagamento,
         vesselStatus: (!data.vesselStatus || data.vesselStatus === "none") ? null : data.vesselStatus,
       };
+
+      if (!editOrder) {
+        payload.criadoPor = currentUser?.name ?? null;
+      }
 
       return editOrder
         ? apiRequest("PATCH", `/api/orders/${editOrder.id}`, payload)

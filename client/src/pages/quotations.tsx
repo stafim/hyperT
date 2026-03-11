@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, Fragment } from "react";
+import { useCurrentUser } from "@/hooks/use-current-user";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card, CardContent } from "@/components/ui/card";
@@ -357,6 +358,7 @@ function calcExportPrice(c: CalcFields, qty: number): CalcBreakdown | null {
 
 function QuotationForm({ editQuotation, onSuccess }: { editQuotation: QuotationWithDetails | null; onSuccess: () => void }) {
   const { toast } = useToast();
+  const { currentUser } = useCurrentUser();
   const { data: clientsList } = useQuery<Client[]>({ queryKey: ["/api/clients"] });
   const { data: productsList } = useQuery<Product[]>({ queryKey: ["/api/products"] });
   const { data: suppliersList } = useQuery<Supplier[]>({ queryKey: ["/api/suppliers"] });
@@ -491,7 +493,7 @@ function QuotationForm({ editQuotation, onSuccess }: { editQuotation: QuotationW
     mutationFn: (data: InsertQuotation) =>
       editQuotation
         ? apiRequest("PATCH", `/api/quotations/${editQuotation.id}`, data)
-        : apiRequest("POST", "/api/quotations", data),
+        : apiRequest("POST", "/api/quotations", { ...data, criadoPor: currentUser?.name ?? null }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/quotations"] });
       toast({ title: editQuotation ? "Cotacao atualizada" : "Cotacao criada" });
@@ -1503,6 +1505,7 @@ function KanbanView({
 
 export default function Quotations() {
   const { toast } = useToast();
+  const { currentUser } = useCurrentUser();
   const [, navigate] = useLocation();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -1538,6 +1541,7 @@ export default function Quotations() {
         quantity: q.quantity,
         paymentTerms: q.paymentTerms || null,
         statusPagamento: "pendente",
+        criadoPor: currentUser?.name ?? null,
       });
       await apiRequest("PATCH", `/api/quotations/${q.id}`, { status: "convertida" });
       return q;
@@ -1687,7 +1691,10 @@ export default function Quotations() {
                     <TableCell>
                       {expandedId === q.id ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                     </TableCell>
-                    <TableCell className="font-medium">{q.client.name}</TableCell>
+                    <TableCell className="font-medium">
+                      <div>{q.client.name}</div>
+                      {q.criadoPor && <div className="text-[11px] text-muted-foreground font-normal">por {q.criadoPor}</div>}
+                    </TableCell>
                     <TableCell>{q.product.type} - {q.product.grammage}g/m2</TableCell>
                     <TableCell>{q.supplier?.name || "-"}</TableCell>
                     <TableCell className="text-right">{formatCurrency(q.unitPrice)}</TableCell>

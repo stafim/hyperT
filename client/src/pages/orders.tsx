@@ -392,7 +392,10 @@ export default function Orders() {
                         data-testid={`row-order-${order.id}`}
                       >
                         <td className="p-3 font-medium">{order.invoice}</td>
-                        <td className="p-3">{order.client?.name || "-"}</td>
+                        <td className="p-3">
+                          <div>{order.client?.name || "-"}</div>
+                          {order.criadoPor && <div className="text-[11px] text-muted-foreground">por {order.criadoPor}</div>}
+                        </td>
                         <td className="p-3">{order.client?.country || "-"}</td>
                         <td className="p-3 max-w-[120px] truncate">{order.product?.type || "-"}</td>
                         <td className="p-3">
