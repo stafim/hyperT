@@ -98,6 +98,7 @@ interface VesselData {
   heading?: number;
   nav_status?: number;
   vessel_type?: number;
+  vessel_type_label?: string;
   flag?: string;
   length?: number;
   width?: number;
@@ -105,6 +106,17 @@ interface VesselData {
   destination?: string;
   eta?: string;
   timestamp?: string;
+  last_port?: string;
+  last_port_country?: string;
+  next_port?: string;
+  next_port_eta?: string;
+  wind_knots?: number;
+  wind_direction?: string;
+  temperature?: number;
+  avg_sog?: number;
+  gt?: number;
+  dwt?: number;
+  built?: number;
 }
 
 function extractVessel(data: any): VesselData | null {
@@ -114,21 +126,32 @@ function extractVessel(data: any): VesselData | null {
   if (!v) return null;
   return {
     mmsi: v.mmsi,
-    imo: v.imo,
+    imo: v.imo ? String(v.imo) : undefined,
     name: v.name ?? v.vessel_name,
     lat: parseFloat(v.lat ?? v.latitude),
     lng: parseFloat(v.lng ?? v.lon ?? v.longitude),
     speed: v.speed != null ? parseFloat(v.speed) : undefined,
-    heading: v.heading != null ? parseFloat(v.heading) : undefined,
+    heading: v.course ?? (v.heading != null ? parseFloat(v.heading) : undefined),
     nav_status: v.nav_status,
-    vessel_type: v.vessel_type,
+    vessel_type: v.vtype ?? v.vessel_type,
+    vessel_type_label: v.vessel_type ?? undefined,
     flag: v.flag,
-    length: v.length != null ? parseFloat(v.length) : undefined,
-    width: v.width != null ? parseFloat(v.width) : undefined,
+    length: v.size_a != null ? parseFloat(v.size_a) + parseFloat(v.size_b ?? 0) : undefined,
+    width: v.size_c != null ? parseFloat(v.size_c) + parseFloat(v.size_d ?? 0) : undefined,
     draught: v.draught != null ? parseFloat(v.draught) : undefined,
-    destination: v.destination,
-    eta: v.eta,
-    timestamp: v.timestamp ?? v.time,
+    destination: v.destination ? String(v.destination).replace(/&gt;/g, "→") : undefined,
+    eta: v.next_port_eta_utc ?? v.eta,
+    timestamp: v.received ?? v.timestamp ?? v.time,
+    last_port: v.last_port ? `${v.last_port}${v.last_port_country ? `, ${v.last_port_country}` : ""}` : undefined,
+    next_port: v.next_port ? `${v.next_port}${v.next_port_country ? `, ${v.next_port_country}` : ""}` : undefined,
+    next_port_eta: v.next_port_eta_utc,
+    wind_knots: v.wind_knots != null ? parseFloat(v.wind_knots) : undefined,
+    wind_direction: v.wind_direction,
+    temperature: v.temperature != null ? parseFloat(v.temperature) : undefined,
+    avg_sog: v.avg_sog != null ? parseFloat(v.avg_sog) : undefined,
+    gt: v.gt,
+    dwt: v.dwt,
+    built: v.built,
   };
 }
 
@@ -244,14 +267,14 @@ export default function Maps() {
 
   // Search by name
   const searchQuery_ = useQuery({
-    queryKey: ["/api/shiptracking/search", searchQuery],
+    queryKey: [`/api/shiptracking/search?name=${encodeURIComponent(searchQuery)}`],
     enabled: !!searchQuery,
     staleTime: 30_000,
   });
 
   // Direct lookup by MMSI/IMO
   const directQuery = useQuery({
-    queryKey: ["/api/shiptracking/vessel", directMmsi],
+    queryKey: [`/api/shiptracking/vessel?mmsi=${encodeURIComponent(directMmsi)}`],
     enabled: !!directMmsi,
     staleTime: 30_000,
   });
@@ -265,9 +288,16 @@ export default function Maps() {
   });
 
   // Historical track
+  const trackMmsi = trackVessel?.mmsi;
+  const trackImo = trackVessel?.imo;
+  const trackUrl = trackMmsi
+    ? `/api/shiptracking/track?mmsi=${trackMmsi}`
+    : trackImo
+    ? `/api/shiptracking/track?imo=${trackImo}`
+    : "";
   const trackQuery = useQuery({
-    queryKey: ["/api/shiptracking/track", trackVessel?.mmsi, trackVessel?.imo],
-    enabled: !!trackVessel,
+    queryKey: [trackUrl],
+    enabled: !!trackUrl,
     staleTime: 60_000,
   });
 
@@ -518,17 +548,24 @@ export default function Maps() {
                 data-testid="btn-close-vessel-detail"
               >✕</button>
             </div>
-            <div className="px-4 py-3 space-y-0.5">
+            <div className="px-4 py-3 space-y-0.5 max-h-64 overflow-y-auto">
               <InfoRow label="MMSI" value={selectedVessel.mmsi} />
               <InfoRow label="IMO" value={selectedVessel.imo} />
               <InfoRow label="Bandeira" value={selectedVessel.flag} />
-              <InfoRow label="Status" value={navStatus(selectedVessel.nav_status)} />
+              <InfoRow label="Tipo" value={selectedVessel.vessel_type_label} />
+              <InfoRow label="Construído" value={selectedVessel.built} />
+              <InfoRow label="GT / DWT" value={selectedVessel.gt != null ? `${selectedVessel.gt.toLocaleString()} / ${selectedVessel.dwt?.toLocaleString()}` : undefined} />
+              <InfoRow label="Status Nav." value={navStatus(selectedVessel.nav_status)} />
               <InfoRow label="Velocidade" value={selectedVessel.speed != null ? `${Number(selectedVessel.speed).toFixed(1)} nós` : undefined} />
+              <InfoRow label="Vel. Média" value={selectedVessel.avg_sog != null ? `${Number(selectedVessel.avg_sog).toFixed(1)} nós` : undefined} />
               <InfoRow label="Rumo" value={selectedVessel.heading != null ? `${Number(selectedVessel.heading).toFixed(0)}°` : undefined} />
               <InfoRow label="Calado" value={selectedVessel.draught != null ? `${selectedVessel.draught} m` : undefined} />
-              <InfoRow label="Comprimento" value={selectedVessel.length != null ? `${selectedVessel.length} m` : undefined} />
               <InfoRow label="Destino" value={selectedVessel.destination} />
-              <InfoRow label="ETA" value={selectedVessel.eta} />
+              <InfoRow label="Últ. Porto" value={selectedVessel.last_port} />
+              <InfoRow label="Próx. Porto" value={selectedVessel.next_port} />
+              <InfoRow label="ETA Próx." value={selectedVessel.next_port_eta ? new Date(selectedVessel.next_port_eta).toLocaleString("pt-BR") : undefined} />
+              <InfoRow label="Vento" value={selectedVessel.wind_knots != null ? `${selectedVessel.wind_knots} kn ${selectedVessel.wind_direction ?? ""}` : undefined} />
+              <InfoRow label="Temperatura" value={selectedVessel.temperature != null ? `${selectedVessel.temperature.toFixed(1)} °C` : undefined} />
               {selectedVessel.lat != null && (
                 <InfoRow label="Posição" value={`${Number(selectedVessel.lat).toFixed(4)}°, ${Number(selectedVessel.lng).toFixed(4)}°`} />
               )}

@@ -1571,7 +1571,7 @@ ${schemaContext}${customContext}`;
 
   app.get("/api/shiptracking/fleet", async (_req, res) => {
     try {
-      const orders = await storage.getExportOrders();
+      const orders = await storage.getOrders();
       const withMmsi = orders.filter((o) => o.mmsi || o.imo);
       const results = await Promise.allSettled(
         withMmsi.map(async (o) => {
