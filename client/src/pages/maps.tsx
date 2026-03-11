@@ -440,9 +440,6 @@ export default function Maps() {
           </TabsContent>
 
           <TabsContent value="frota" className="flex-1 flex flex-col overflow-hidden m-0 px-4">
-            <p className="text-xs text-muted-foreground mb-3 shrink-0">
-              Navios com MMSI cadastrado nas Ordens de Exportação.
-            </p>
             {fleetQuery.isFetching && (
               <div className="flex items-center justify-center py-10 text-muted-foreground text-sm gap-2">
                 <Loader2 className="h-4 w-4 animate-spin" /> Carregando frota...
