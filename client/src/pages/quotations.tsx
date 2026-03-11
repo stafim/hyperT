@@ -18,7 +18,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import {
   Plus, Search, Pencil, Trash2, FileCheck, Send, Mail, MessageCircle,
   ArrowRight, ChevronDown, ChevronRight, Clock, Eye, TrendingUp, FileDown,
-  LayoutGrid, List, StickyNote, User, X, ChevronUp, Calculator,
+  LayoutGrid, List, StickyNote, User, X, ChevronUp, Calculator, Flame,
 } from "lucide-react";
 import { QuotationCalculator } from "@/components/quotation-calculator";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -1185,6 +1185,56 @@ function SendLogPanel({ quotationId }: { quotationId: number }) {
   );
 }
 
+// ─── Quotation temperature ─────────────────────────────────────────────────────
+
+function getQuotationTemperature(validityDate: string | null | undefined, createdAt: string | null | undefined) {
+  if (!validityDate) return null;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const expiry = new Date(validityDate);
+  expiry.setHours(0, 0, 0, 0);
+
+  const daysRemaining = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+  const origin = createdAt ? new Date(createdAt) : null;
+  if (origin) origin.setHours(0, 0, 0, 0);
+
+  const totalDays = origin ? Math.ceil((expiry.getTime() - origin.getTime()) / (1000 * 60 * 60 * 24)) : 30;
+  const consumed = origin ? Math.ceil((today.getTime() - origin.getTime()) / (1000 * 60 * 60 * 24)) : Math.max(0, totalDays - daysRemaining);
+  const pct = Math.min(100, Math.max(0, totalDays > 0 ? (consumed / totalDays) * 100 : 100));
+
+  const isExpired = daysRemaining < 0;
+
+  let label: string;
+  let barColor: string;
+  let textColor: string;
+
+  if (isExpired) {
+    label = "Expirada";
+    barColor = "bg-red-500";
+    textColor = "text-red-500";
+  } else if (pct >= 80) {
+    label = "Crítico";
+    barColor = "bg-red-500";
+    textColor = "text-red-500";
+  } else if (pct >= 60) {
+    label = "Urgente";
+    barColor = "bg-orange-500";
+    textColor = "text-orange-500";
+  } else if (pct >= 30) {
+    label = "Atenção";
+    barColor = "bg-yellow-500";
+    textColor = "text-yellow-500";
+  } else {
+    label = "Em aberto";
+    barColor = "bg-green-500";
+    textColor = "text-green-500";
+  }
+
+  return { pct, label, barColor, textColor, daysRemaining, showFlame: pct >= 80 && !isExpired, isExpired };
+}
+
 // ─── Kanban: card detail sheet ────────────────────────────────────────────────
 
 function KanbanCardDetail({
@@ -1439,42 +1489,74 @@ function KanbanView({
                     </div>
                   ) : (
                     <>
-                      {cards.map((q) => (
-                        <div
-                          key={q.id}
-                          draggable
-                          onDragStart={(e) => {
-                            setDraggingId(q.id);
-                            e.dataTransfer.effectAllowed = "move";
-                            e.dataTransfer.setData("text/plain", String(q.id));
-                          }}
-                          onDragEnd={() => { setDraggingId(null); setDragOverCol(null); }}
-                          onClick={() => setSelected(q)}
-                          className={`rounded-lg border bg-card hover:shadow-md hover:border-primary/30 transition-all p-3 space-y-2 select-none ${draggingId === q.id ? "opacity-40 cursor-grabbing shadow-lg" : "cursor-grab"}`}
-                          data-testid={`kanban-card-${q.id}`}
-                        >
-                          {/* Client */}
-                          <div className="flex items-center gap-1.5">
-                            <User className="h-3.5 w-3.5 text-blue-500 shrink-0" />
-                            <span className="font-semibold text-sm truncate">{q.client.name}</span>
-                            <span className="text-xs text-muted-foreground shrink-0">({q.client.country})</span>
-                          </div>
-                          {/* Product */}
-                          <p className="text-xs text-muted-foreground truncate">{q.product.type} — {q.product.grammage}</p>
-                          {/* Total */}
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm font-bold text-primary">{formatCurrency(q.total)}</span>
-                            <span className="text-xs text-muted-foreground">{q.quantity} {q.product.unidade || "un"}</span>
-                          </div>
-                          {/* Footer */}
-                          {q.validityDate && (
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground border-t pt-1.5">
-                              <Clock className="h-3 w-3" />
-                              <span>Val: {formatDate(q.validityDate)}</span>
+                      {cards.map((q) => {
+                        const temp = getQuotationTemperature(q.validityDate, q.createdAt ? String(q.createdAt) : null);
+                        return (
+                            <div
+                              key={q.id}
+                              draggable
+                              onDragStart={(e) => {
+                                setDraggingId(q.id);
+                                e.dataTransfer.effectAllowed = "move";
+                                e.dataTransfer.setData("text/plain", String(q.id));
+                              }}
+                              onDragEnd={() => { setDraggingId(null); setDragOverCol(null); }}
+                              onClick={() => setSelected(q)}
+                              className={`rounded-lg border bg-card hover:shadow-md hover:border-primary/30 transition-all select-none overflow-hidden ${draggingId === q.id ? "opacity-40 cursor-grabbing shadow-lg" : "cursor-grab"}`}
+                              data-testid={`kanban-card-${q.id}`}
+                            >
+                              <div className="p-3 space-y-2">
+                                {/* Client */}
+                                <div className="flex items-center gap-1.5">
+                                  <User className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                                  <span className="font-semibold text-sm truncate">{q.client.name}</span>
+                                  <span className="text-xs text-muted-foreground shrink-0">({q.client.country})</span>
+                                </div>
+                                {/* Product */}
+                                <p className="text-xs text-muted-foreground truncate">{q.product.type} — {q.product.grammage}</p>
+                                {/* Total */}
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm font-bold text-primary">{formatCurrency(q.total)}</span>
+                                  <span className="text-xs text-muted-foreground">{q.quantity} {q.product.unidade || "un"}</span>
+                                </div>
+                                {/* Footer: validity + temperature label */}
+                                {q.validityDate && temp && (
+                                  <div className="flex items-center justify-between border-t pt-1.5">
+                                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                      <Clock className="h-3 w-3 shrink-0" />
+                                      <span>Val: {formatDate(q.validityDate)}</span>
+                                    </div>
+                                    <div className={`flex items-center gap-0.5 text-xs font-medium ${temp.textColor}`}>
+                                      {temp.showFlame && <Flame className="h-3.5 w-3.5 fill-current" />}
+                                      <span>
+                                        {temp.isExpired
+                                          ? "Expirada"
+                                          : temp.daysRemaining === 0
+                                          ? "Hoje"
+                                          : `${temp.daysRemaining}d`}
+                                      </span>
+                                    </div>
+                                  </div>
+                                )}
+                                {q.validityDate && !temp && (
+                                  <div className="flex items-center gap-1 text-xs text-muted-foreground border-t pt-1.5">
+                                    <Clock className="h-3 w-3" />
+                                    <span>Val: {formatDate(q.validityDate)}</span>
+                                  </div>
+                                )}
+                              </div>
+                              {/* Temperature bar */}
+                              {temp && (
+                                <div className="h-1 w-full bg-muted">
+                                  <div
+                                    className={`h-full transition-all ${temp.barColor}`}
+                                    style={{ width: `${temp.pct}%` }}
+                                  />
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
-                      ))}
+                          );
+                        })}
                       {isOver && (
                         <div className="rounded-lg border-2 border-dashed border-primary/50 bg-primary/5 p-3 text-center text-xs text-primary">
                           Soltar aqui
