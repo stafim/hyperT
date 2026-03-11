@@ -19,7 +19,6 @@ import Quotations from "@/pages/quotations";
 import Vencimentos from "@/pages/vencimentos";
 import ExposicaoCambial from "@/pages/exposicao-cambial";
 import PlatformUsers from "@/pages/platform-users";
-import Vendedores from "@/pages/vendedores";
 import Rastreabilidade from "@/pages/rastreabilidade";
 import Documentos from "@/pages/documentos";
 import LpcoPage from "@/pages/lpco";
@@ -53,7 +52,6 @@ function MainRouter() {
       <Route path="/quotes" component={Quotes} />
       <Route path="/reports" component={Reports} />
       <Route path="/platform-users" component={PlatformUsers} />
-      <Route path="/vendedores" component={Vendedores} />
       <Route path="/rastreabilidade" component={Rastreabilidade} />
       <Route path="/documentos" component={Documentos} />
       <Route path="/lpco" component={LpcoPage} />
