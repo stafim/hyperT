@@ -64,7 +64,7 @@ export default function Commissions() {
   const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [filterVendedor, setFilterVendedor] = useState("all");
-  const [filterStatus, setFilterStatus] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("devida");
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
 
