@@ -91,6 +91,7 @@ export default function Commissions() {
   const filtered = useMemo(() => {
     const s = search.toLowerCase();
     return rows.filter((r) => {
+      if (r.vendedor === "—") return false;
       if (filterVendedor !== "all" && r.vendedor !== filterVendedor) return false;
       if (filterStatus !== "all" && r.statusComissao !== filterStatus) return false;
       if (s) {
@@ -250,8 +251,8 @@ export default function Commissions() {
             <Percent className="h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-medium mb-1">Nenhuma comissão encontrada</h3>
             <p className="text-sm text-muted-foreground text-center max-w-sm">
-              {rows.length === 0
-                ? "Não há ordens de exportação com vendedor e % de comissão configurados."
+              {rows.every((r) => r.vendedor === "—")
+                ? "Nenhuma ordem possui vendedor atribuído. Edite as Ordens de Exportação e selecione um vendedor para calcular comissões."
                 : "Nenhuma comissão corresponde aos filtros selecionados."}
             </p>
           </CardContent>
