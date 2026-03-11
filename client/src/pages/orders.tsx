@@ -509,9 +509,9 @@ export default function Orders() {
       )}
 
       <Dialog open={!!detailOrder} onOpenChange={(v) => { if (!v) setDetailOrder(null); }}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Detalhes da Ordem - {detailOrder?.invoice}</DialogTitle>
+            <DialogTitle>Detalhes da Ordem — {detailOrder?.invoice}</DialogTitle>
           </DialogHeader>
           {detailOrder && <OrderDetail order={detailOrder} />}
         </DialogContent>
