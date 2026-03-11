@@ -16,6 +16,8 @@ type OrderWithDetails = {
   invoice: string;
   factory: string | null;
   vessel: string | null;
+  mmsi: string | null;
+  imo: string | null;
   modal: string;
   vesselStatus: string | null;
   embarqueDate: string | null;
@@ -239,6 +241,12 @@ function TrackingModal({ order, open, onClose }: { order: OrderWithDetails; open
               {order.vessel ? (
                 <>
                   <p className="font-bold text-base leading-tight">{order.vessel}</p>
+                  {(order as any).mmsi && (
+                    <a href={`/maps?mmsi=${(order as any).mmsi}`} className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 hover:underline font-semibold">
+                      <Ship className="h-3 w-3" />
+                      Rastrear no Mapa
+                    </a>
+                  )}
                   {marineUrl && (
                     <a href={marineUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline">
                       <ExternalLink className="h-3 w-3" />

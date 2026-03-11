@@ -1514,6 +1514,83 @@ ${schemaContext}${customContext}`;
     }
   });
 
+  // ── MyShipTracking proxy ──────────────────────────────────────────────────
+  const MST_BASE = "https://api.myshiptracking.com/api/v2";
+  const MST_KEY = process.env.MYSHIPTRACKING_API_KEY ?? "";
+
+  async function mstFetch(path: string, params: Record<string, string>) {
+    const url = new URL(`${MST_BASE}${path}`);
+    Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+    const res = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${MST_KEY}` },
+    });
+    if (!res.ok) throw new Error(`MyShipTracking error ${res.status}`);
+    return res.json();
+  }
+
+  app.get("/api/shiptracking/vessel", async (req, res) => {
+    try {
+      const { mmsi, imo } = req.query as Record<string, string>;
+      if (!mmsi && !imo) return res.status(400).json({ error: "mmsi ou imo obrigatório" });
+      const params: Record<string, string> = { response: "extended" };
+      if (mmsi) params.mmsi = mmsi;
+      if (imo) params.imo = imo;
+      const data = await mstFetch("/vessel", params);
+      res.json(data);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get("/api/shiptracking/search", async (req, res) => {
+    try {
+      const { name } = req.query as Record<string, string>;
+      if (!name) return res.status(400).json({ error: "name obrigatório" });
+      const data = await mstFetch("/vessel/search", { name });
+      res.json(data);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get("/api/shiptracking/track", async (req, res) => {
+    try {
+      const { mmsi, imo, fromdate, todate } = req.query as Record<string, string>;
+      if (!mmsi && !imo) return res.status(400).json({ error: "mmsi ou imo obrigatório" });
+      const params: Record<string, string> = {};
+      if (mmsi) params.mmsi = mmsi;
+      if (imo) params.imo = imo;
+      if (fromdate) params.fromdate = fromdate;
+      if (todate) params.todate = todate;
+      const data = await mstFetch("/vessel/track", params);
+      res.json(data);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get("/api/shiptracking/fleet", async (_req, res) => {
+    try {
+      const orders = await storage.getExportOrders();
+      const withMmsi = orders.filter((o) => o.mmsi || o.imo);
+      const results = await Promise.allSettled(
+        withMmsi.map(async (o) => {
+          const params: Record<string, string> = { response: "extended" };
+          if (o.mmsi) params.mmsi = o.mmsi;
+          else if (o.imo) params.imo = o.imo!;
+          const data = await mstFetch("/vessel", params);
+          return { order: o, tracking: data };
+        })
+      );
+      const fleet = results
+        .filter((r) => r.status === "fulfilled")
+        .map((r) => (r as PromiseFulfilledResult<any>).value);
+      res.json({ fleet });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   app.post("/api/telegram/audio-pro", async (_req, res) => {
     try {
       const result = await sendTelegramAudioPro();

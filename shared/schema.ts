@@ -114,6 +114,8 @@ export const exportOrders = pgTable("export_orders", {
   parametrizacao: parametrizacaoEnum("parametrizacao").notNull().default("verde"),
   modal: modalEnum("modal").notNull(),
   vessel: text("vessel"),
+  mmsi: text("mmsi"),
+  imo: text("imo"),
   embarqueDate: date("embarque_date"),
   desembarqueDate: date("desembarque_date"),
   transitTime: integer("transit_time"),

@@ -30,6 +30,8 @@ interface OrderFormData {
   parametrizacao: "verde" | "amarelo" | "vermelho";
   modal: "rodoviario" | "maritimo";
   vessel: string;
+  mmsi: string;
+  imo: string;
   embarqueDate: string;
   desembarqueDate: string;
   deadlineDra: string;
@@ -83,6 +85,8 @@ export default function OrderForm({
           parametrizacao: editOrder.parametrizacao,
           modal: editOrder.modal,
           vessel: editOrder.vessel || "",
+          mmsi: (editOrder as any).mmsi || "",
+          imo: (editOrder as any).imo || "",
           embarqueDate: editOrder.embarqueDate || "",
           desembarqueDate: editOrder.desembarqueDate || "",
           deadlineDra: editOrder.deadlineDra || "",
@@ -111,6 +115,8 @@ export default function OrderForm({
           parametrizacao: "verde",
           modal: "maritimo",
           vessel: "",
+          mmsi: "",
+          imo: "",
           embarqueDate: "",
           desembarqueDate: "",
           deadlineDra: "",
@@ -158,6 +164,8 @@ export default function OrderForm({
         parametrizacao: data.parametrizacao,
         modal: data.modal,
         vessel: data.modal === "maritimo" ? data.vessel || null : null,
+        mmsi: data.modal === "maritimo" ? data.mmsi || null : null,
+        imo: data.modal === "maritimo" ? data.imo || null : null,
         embarqueDate: data.embarqueDate || null,
         desembarqueDate: data.desembarqueDate || null,
         deadlineDra: data.deadlineDra || null,
@@ -336,13 +344,31 @@ export default function OrderForm({
               </FormItem>
             )} />
             {modal === "maritimo" && (
-              <FormField control={form.control} name="vessel" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Vessel</FormLabel>
-                  <FormControl><Input {...field} data-testid="input-order-vessel" /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )} />
+              <>
+                <FormField control={form.control} name="vessel" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Vessel</FormLabel>
+                    <FormControl><Input {...field} data-testid="input-order-vessel" /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField control={form.control} name="mmsi" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>MMSI</FormLabel>
+                      <FormControl><Input {...field} placeholder="ex: 123456789" data-testid="input-order-mmsi" /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="imo" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>IMO</FormLabel>
+                      <FormControl><Input {...field} placeholder="ex: 9123456" data-testid="input-order-imo" /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                </div>
+              </>
             )}
             <FormField control={form.control} name="vesselStatus" render={({ field }) => (
               <FormItem>
