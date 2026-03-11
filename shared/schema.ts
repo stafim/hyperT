@@ -77,6 +77,7 @@ export const quotations = pgTable("quotations", {
   validityDate: date("validity_date"),
   notes: text("notes"),
   status: quotationStatusEnum("status").notNull().default("rascunho"),
+  isHot: boolean("is_hot").notNull().default(false),
   criadoPor: text("criado_por"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

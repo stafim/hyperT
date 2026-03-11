@@ -1275,6 +1275,21 @@ function KanbanCardDetail({
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/quotations", quotation?.id, "notes"] }),
   });
 
+  const toggleHotMut = useMutation({
+    mutationFn: (isHot: boolean) =>
+      apiRequest("PATCH", `/api/quotations/${quotation!.id}`, { isHot }).then(r => r.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/quotations"] });
+      toast({
+        title: quotation?.isHot ? "Flag removida" : "Cotação marcada como quente!",
+        description: quotation?.isHot
+          ? "Sinalização de fechamento iminente removida."
+          : "Chama de fechamento iminente ativada no card.",
+      });
+    },
+    onError: (e: Error) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
+  });
+
   if (!quotation) return null;
   const c = quotation.client;
 
@@ -1282,9 +1297,25 @@ function KanbanCardDetail({
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
       <SheetContent className="w-full sm:max-w-md overflow-y-auto" data-testid="sheet-kanban-detail">
         <SheetHeader className="pb-3">
-          <SheetTitle className="flex items-center gap-2 text-base">
-            <Badge variant="secondary" className={statusColors[quotation.status]}>{statusLabels[quotation.status]}</Badge>
-            <span className="text-muted-foreground font-normal text-sm">Cotação #{quotation.id}</span>
+          <SheetTitle className="flex items-center justify-between gap-2 text-base">
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary" className={statusColors[quotation.status]}>{statusLabels[quotation.status]}</Badge>
+              <span className="text-muted-foreground font-normal text-sm">Cotação #{quotation.id}</span>
+            </div>
+            <button
+              onClick={() => toggleHotMut.mutate(!quotation.isHot)}
+              disabled={toggleHotMut.isPending}
+              title={quotation.isHot ? "Remover flag de fechamento iminente" : "Marcar como prestes a fechar"}
+              data-testid="button-toggle-hot"
+              className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-all border ${
+                quotation.isHot
+                  ? "bg-orange-100 dark:bg-orange-950/40 border-orange-300 dark:border-orange-700 text-orange-600 dark:text-orange-400 hover:bg-orange-200 dark:hover:bg-orange-900/60"
+                  : "bg-muted border-border text-muted-foreground hover:bg-orange-50 dark:hover:bg-orange-950/20 hover:border-orange-300 hover:text-orange-500"
+              }`}
+            >
+              <Flame className={`h-3.5 w-3.5 ${quotation.isHot ? "fill-orange-500 text-orange-500" : ""}`} />
+              {quotation.isHot ? "Quente" : "Marcar quente"}
+            </button>
           </SheetTitle>
         </SheetHeader>
 
@@ -1502,7 +1533,7 @@ function KanbanView({
                               }}
                               onDragEnd={() => { setDraggingId(null); setDragOverCol(null); }}
                               onClick={() => setSelected(q)}
-                              className={`rounded-lg border bg-card hover:shadow-md hover:border-primary/30 transition-all select-none overflow-hidden ${draggingId === q.id ? "opacity-40 cursor-grabbing shadow-lg" : "cursor-grab"}`}
+                              className={`rounded-lg border bg-card hover:shadow-md transition-all select-none overflow-hidden ${draggingId === q.id ? "opacity-40 cursor-grabbing shadow-lg" : "cursor-grab"} ${q.isHot ? "border-orange-400 dark:border-orange-600 shadow-orange-100 dark:shadow-orange-950/30 shadow-sm" : "hover:border-primary/30"}`}
                               data-testid={`kanban-card-${q.id}`}
                             >
                               <div className="p-3 space-y-2">
@@ -1520,28 +1551,33 @@ function KanbanView({
                                   <span className="text-xs text-muted-foreground">{q.quantity} {q.product.unidade || "un"}</span>
                                 </div>
                                 {/* Footer: validity + temperature label */}
-                                {q.validityDate && temp && (
+                                {(q.validityDate || q.isHot) && (
                                   <div className="flex items-center justify-between border-t pt-1.5">
                                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                      <Clock className="h-3 w-3 shrink-0" />
-                                      <span>Val: {formatDate(q.validityDate)}</span>
+                                      {q.validityDate && <><Clock className="h-3 w-3 shrink-0" /><span>Val: {formatDate(q.validityDate)}</span></>}
                                     </div>
-                                    <div className={`flex items-center gap-0.5 text-xs font-medium ${temp.textColor}`}>
-                                      {temp.showFlame && <Flame className="h-3.5 w-3.5 fill-current" />}
-                                      <span>
-                                        {temp.isExpired
-                                          ? "Expirada"
-                                          : temp.daysRemaining === 0
-                                          ? "Hoje"
-                                          : `${temp.daysRemaining}d`}
-                                      </span>
+                                    <div className="flex items-center gap-1">
+                                      {/* Manual hot flag */}
+                                      {q.isHot && (
+                                        <span className="flex items-center gap-0.5 text-xs font-semibold text-orange-500">
+                                          <Flame className="h-3.5 w-3.5 fill-orange-500" />
+                                          Quente
+                                        </span>
+                                      )}
+                                      {/* Auto temperature */}
+                                      {temp && !q.isHot && (
+                                        <span className={`flex items-center gap-0.5 text-xs font-medium ${temp.textColor}`}>
+                                          {temp.showFlame && <Flame className="h-3.5 w-3.5 fill-current" />}
+                                          {temp.isExpired ? "Expirada" : temp.daysRemaining === 0 ? "Hoje" : `${temp.daysRemaining}d`}
+                                        </span>
+                                      )}
+                                      {/* Both: show hot + days */}
+                                      {temp && q.isHot && (
+                                        <span className={`flex items-center gap-0.5 text-xs font-medium ${temp.textColor}`}>
+                                          {temp.isExpired ? "Expirada" : temp.daysRemaining === 0 ? "Hoje" : `${temp.daysRemaining}d`}
+                                        </span>
+                                      )}
                                     </div>
-                                  </div>
-                                )}
-                                {q.validityDate && !temp && (
-                                  <div className="flex items-center gap-1 text-xs text-muted-foreground border-t pt-1.5">
-                                    <Clock className="h-3 w-3" />
-                                    <span>Val: {formatDate(q.validityDate)}</span>
                                   </div>
                                 )}
                               </div>
