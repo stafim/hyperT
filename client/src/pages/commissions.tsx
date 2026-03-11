@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,7 +12,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   DollarSign, Users, TrendingUp, CheckCircle2, Clock, AlertCircle,
-  Search, Filter, Download, Percent, ChevronsUpDown
+  Search, Filter, Download, Percent, ChevronsUpDown,
+  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight
 } from "lucide-react";
 import type { PlatformUser } from "@shared/schema";
 
@@ -64,6 +65,8 @@ export default function Commissions() {
   const [search, setSearch] = useState("");
   const [filterVendedor, setFilterVendedor] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 10;
 
   const { data: rows = [], isLoading } = useQuery<CommissionRow[]>({
     queryKey: ["/api/commissions"],
@@ -105,6 +108,11 @@ export default function Commissions() {
       return true;
     });
   }, [rows, filterVendedor, filterStatus, search]);
+
+  useEffect(() => { setPage(1); }, [search, filterVendedor, filterStatus]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const totals = useMemo(() => {
     const all = rows.filter((r) => r.comissaoPct > 0);
@@ -277,7 +285,7 @@ export default function Commissions() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((row) => {
+              {paged.map((row) => {
                 const statusCfg = statusComissaoConfig[row.statusComissao];
                 const pgto = statusPagamentoConfig[row.statusPagamento] ?? { label: row.statusPagamento, color: "" };
                 const StatusIcon = statusCfg.icon;
@@ -373,6 +381,44 @@ export default function Commissions() {
               })}
             </TableBody>
           </Table>
+        </div>
+      )}
+
+      {filtered.length > 0 && (
+        <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <span>
+            Exibindo {Math.min((page - 1) * PAGE_SIZE + 1, filtered.length)}–{Math.min(page * PAGE_SIZE, filtered.length)} de {filtered.length} comissões
+          </span>
+          <div className="flex items-center gap-1">
+            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage(1)} disabled={page === 1} data-testid="button-commission-first">
+              <ChevronsLeft className="h-4 w-4" />
+            </Button>
+            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} data-testid="button-commission-prev">
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+              .reduce<(number | "...")[]>((acc, p, idx, arr) => {
+                if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push("...");
+                acc.push(p);
+                return acc;
+              }, [])
+              .map((p, i) =>
+                p === "..." ? (
+                  <span key={`ellipsis-${i}`} className="px-1 text-muted-foreground">…</span>
+                ) : (
+                  <Button key={p} variant={page === p ? "default" : "outline"} size="icon" className="h-8 w-8" onClick={() => setPage(p as number)} data-testid={`button-commission-page-${p}`}>
+                    {p}
+                  </Button>
+                )
+              )}
+            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} data-testid="button-commission-next">
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage(totalPages)} disabled={page === totalPages} data-testid="button-commission-last">
+              <ChevronsRight className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       )}
 
