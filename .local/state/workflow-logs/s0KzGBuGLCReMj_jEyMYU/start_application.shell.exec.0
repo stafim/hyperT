@@ -1,0 +1,17 @@
+
+> rest-express@1.0.0 dev
+> NODE_ENV=development tsx server/index.ts
+
+[1G[0K1:55:06 PM [express] serving on port 5000
+
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+[2m1:55:10 PM[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m Pre-transform error: Failed to resolve import "react-leaflet" from "client/src/pages/maps.tsx". Does the file exist?
+  Plugin: [35mvite:import-analysis[39m
+  File: [36m/home/runner/workspace/client/src/pages/maps.tsx[39m:2:53
+[33m  17 |  var _s = $RefreshSig$();
+  18 |  import { useEffect } from "react";
+  19 |  import { MapContainer, TileLayer, ZoomControl } from "react-leaflet";
+     |                                                        ^
+  20 |  import "leaflet/dist/leaflet.css";
+  21 |  export default function Maps() {[39m
+[1G[0K⠙[1G[0K
