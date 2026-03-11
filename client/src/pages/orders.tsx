@@ -14,7 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Plus, Search, Eye, Pencil, Trash2, Ship, Truck, Filter, MapPin, Navigation, Bell, BellOff, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 import type { ExportOrderWithDetails, Client, Product, Supplier, ShipmentTracking } from "@shared/schema";
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 10;
 
 interface PaginatedOrders {
   data: ExportOrderWithDetails[];
