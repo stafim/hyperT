@@ -418,6 +418,83 @@ export async function registerRoutes(
     res.status(204).end();
   });
 
+  // Commission Reports
+  app.get("/api/commissions", async (_req, res) => {
+    try {
+      const [orders, users, commRecords] = await Promise.all([
+        storage.getOrders(),
+        storage.getPlatformUsers(),
+        storage.getCommissionRecords(),
+      ]);
+
+      const commRecordsByOrderId = new Map(commRecords.map((r) => [r.orderId, r]));
+
+      const today = new Date();
+
+      const result = orders.map((order) => {
+        const seller = users.find((u) => u.name === order.criadoPor);
+        const comissaoPct = seller ? parseFloat(seller.comissaoPct ?? "0") : 0;
+        const totalUSD = parseFloat(String(order.total)) || 0;
+        const exchangeRate = parseFloat(String(order.exchangeClose ?? "0")) || 0;
+        const commissionBaseUSD = totalUSD;
+        const commissionBRL = exchangeRate > 0 ? commissionBaseUSD * (comissaoPct / 100) * exchangeRate : 0;
+
+        const existingRecord = commRecordsByOrderId.get(order.id);
+
+        let autoStatus: "prevista" | "devida" | "paga" = "prevista";
+        if (existingRecord?.status === "paga") {
+          autoStatus = "paga";
+        } else if (
+          order.statusPagamento === "pago" ||
+          order.statusPagamento === "atrasado" ||
+          (order.vesselStatus && order.vesselStatus !== "none") ||
+          (order.embarqueDate && new Date(order.embarqueDate) <= today)
+        ) {
+          autoStatus = "devida";
+        }
+        const statusComissao = existingRecord?.status ?? autoStatus;
+
+        return {
+          orderId: order.id,
+          invoice: order.invoice,
+          vendedor: order.criadoPor ?? "—",
+          cliente: order.client?.name ?? "—",
+          pais: order.client?.country ?? "—",
+          produto: order.product?.type ?? "—",
+          totalUSD,
+          commissionBaseUSD,
+          comissaoPct,
+          exchangeRate,
+          commissionBRL,
+          statusPagamento: order.statusPagamento,
+          statusComissao,
+          paidAt: existingRecord?.paidAt ?? null,
+          notes: existingRecord?.notes ?? null,
+          embarqueDate: order.embarqueDate,
+          createdAt: order.createdAt,
+        };
+      });
+
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.patch("/api/commissions/:orderId", async (req, res) => {
+    try {
+      const orderId = Number(req.params.orderId);
+      const { status, notes } = req.body;
+      if (!["prevista", "devida", "paga"].includes(status)) {
+        return res.status(400).json({ message: "Status inválido" });
+      }
+      const record = await storage.upsertCommissionRecord(orderId, status, notes);
+      res.json(record);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   // AI Analysis (streaming SSE)
   app.post("/api/ai/analysis", async (req, res) => {
     try {

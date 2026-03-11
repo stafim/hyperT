@@ -5,6 +5,7 @@ import { z } from "zod";
 
 export const userRoleEnum = pgEnum("user_role", ["admin", "operador", "visualizador"]);
 export const userStatusEnum = pgEnum("user_status", ["ativo", "inativo"]);
+export const commissionStatusEnum = pgEnum("commission_status", ["prevista", "devida", "paga"]);
 export const productUnidadeEnum = pgEnum("product_unidade", ["caixa", "resma"]);
 
 export const modalEnum = pgEnum("modal_type", ["rodoviario", "maritimo"]);
@@ -150,6 +151,7 @@ export const platformUsers = pgTable("platform_users", {
   status: userStatusEnum("status").notNull().default("ativo"),
   phone: text("phone"),
   department: text("department"),
+  comissaoPct: numeric("comissao_pct", { precision: 5, scale: 2 }).notNull().default("0"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -159,6 +161,15 @@ export const clientPortalUsers = pgTable("client_portal_users", {
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
   status: text("status").notNull().default("ativo"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const commissionRecords = pgTable("commission_records", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  orderId: integer("order_id").notNull().unique(),
+  status: commissionStatusEnum("status").notNull().default("prevista"),
+  paidAt: timestamp("paid_at"),
+  notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -250,6 +261,7 @@ export const insertProductSchema = createInsertSchema(products).omit({ id: true 
 export const insertQuotationSchema = createInsertSchema(quotations).omit({ id: true, createdAt: true, updatedAt: true, total: true });
 export const insertExportOrderSchema = createInsertSchema(exportOrders).omit({ id: true, createdAt: true, transitTime: true, total: true });
 export const insertPlatformUserSchema = createInsertSchema(platformUsers).omit({ id: true, createdAt: true });
+export const insertCommissionRecordSchema = createInsertSchema(commissionRecords).omit({ id: true, createdAt: true });
 
 export type InsertSupplier = z.infer<typeof insertSupplierSchema>;
 export type Supplier = typeof suppliers.$inferSelect;
@@ -267,6 +279,8 @@ export type InsertExportOrder = z.infer<typeof insertExportOrderSchema>;
 export type ExportOrder = typeof exportOrders.$inferSelect;
 
 export type OrderAuditLogEntry = typeof orderAuditLog.$inferSelect;
+export type CommissionRecord = typeof commissionRecords.$inferSelect;
+export type InsertCommissionRecord = z.infer<typeof insertCommissionRecordSchema>;
 
 export type QuotationWithDetails = Quotation & {
   client: Client;

@@ -13,7 +13,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Search, Pencil, Trash2, UserCog, Mail, Phone, Building2, Shield, Eye } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, UserCog, Mail, Phone, Building2, Shield, Eye, Percent } from "lucide-react";
 import { insertPlatformUserSchema, type PlatformUser, type InsertPlatformUser } from "@shared/schema";
 
 const roleLabels: Record<string, { label: string; color: string }> = {
@@ -34,14 +34,15 @@ function UserForm({ editUser, onSuccess }: { editUser: PlatformUser | null; onSu
     resolver: zodResolver(insertPlatformUserSchema),
     defaultValues: editUser
       ? {
-          name:       editUser.name,
-          email:      editUser.email,
-          role:       editUser.role,
-          status:     editUser.status,
-          phone:      editUser.phone ?? "",
-          department: editUser.department ?? "",
+          name:        editUser.name,
+          email:       editUser.email,
+          role:        editUser.role,
+          status:      editUser.status,
+          phone:       editUser.phone ?? "",
+          department:  editUser.department ?? "",
+          comissaoPct: editUser.comissaoPct ?? "0",
         }
-      : { name: "", email: "", role: "operador", status: "ativo", phone: "", department: "" },
+      : { name: "", email: "", role: "operador", status: "ativo", phone: "", department: "", comissaoPct: "0" },
   });
 
   const mutation = useMutation({
@@ -121,6 +122,35 @@ function UserForm({ editUser, onSuccess }: { editUser: PlatformUser | null; onSu
                   <SelectItem value="inativo">Inativo</SelectItem>
                 </SelectContent>
               </Select>
+              <FormMessage />
+            </FormItem>
+          )} />
+        </div>
+
+        <div className="border-t pt-3">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-1">
+            <Percent className="h-3 w-3" /> Comissão sobre Vendas
+          </p>
+          <FormField control={form.control} name="comissaoPct" render={({ field }) => (
+            <FormItem>
+              <FormLabel>Percentual de Comissão (%)</FormLabel>
+              <FormControl>
+                <div className="relative">
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="100"
+                    placeholder="0.00"
+                    {...field}
+                    value={field.value ?? "0"}
+                    className="pr-8"
+                    data-testid="input-comissao-pct"
+                  />
+                  <Percent className="absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                </div>
+              </FormControl>
+              <p className="text-xs text-muted-foreground">Percentual aplicado sobre o valor FOB/EXW das ordens criadas por este vendedor.</p>
               <FormMessage />
             </FormItem>
           )} />
@@ -278,6 +308,7 @@ export default function PlatformUsers() {
                 <TableHead>E-mail</TableHead>
                 <TableHead>Departamento</TableHead>
                 <TableHead>Perfil</TableHead>
+                <TableHead className="text-right">Comissão</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Cadastro</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
@@ -319,6 +350,16 @@ export default function PlatformUsers() {
                         {roleIcons[user.role]}
                         {role.label}
                       </span>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {parseFloat(user.comissaoPct ?? "0") > 0 ? (
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-primary">
+                          <Percent className="h-3 w-3" />
+                          {parseFloat(user.comissaoPct ?? "0").toFixed(2)}%
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">—</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Badge variant={user.status === "ativo" ? "default" : "secondary"} className="text-xs">

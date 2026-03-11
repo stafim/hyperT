@@ -44,14 +44,15 @@ shared/
 ```
 
 ## Database Schema
-- **platform_users**: name, email, role (admin/operador/visualizador), status (ativo/inativo), phone, department
+- **platform_users**: name, email, role (admin/operador/visualizador), status (ativo/inativo), phone, department, comissaoPct (numeric % commission per seller)
+- **commission_records**: orderId (unique FK), status (prevista/devida/paga), paidAt, notes
 - **suppliers**: name, cnpj, contact, phone, email, city, state
 - **clients**: name, country, creditLimit, paymentTerms, email, phone, responsavel, registroNacional (CUIT/RUC/RUT), address, city, state, zipCode, notes
 - **client_documents**: clientId (FK), nome, tipo (contrato/licença/certificado/procuração/registro/outro), numero, emissao (date), validade (date), observacoes, createdAt
 - **products**: type, grammage, unidade (caixa|resma), standardPrice, supplierId (FK to suppliers)
-- **quotations**: clientId, productId, supplierId, unitPrice, quantity, total, paymentTerms, validityDate, notes, status (rascunho/enviada/aceita/recusada/convertida)
+- **quotations**: clientId, productId, supplierId, unitPrice, quantity, total, paymentTerms, validityDate, notes, status (rascunho/enviada/aceita/recusada/convertida), criadoPor (text, seller name)
 - **quotation_send_log**: quotationId, method (email/whatsapp), userName, recipientInfo, sentAt
-- **export_orders**: quotationId (FK), invoice, factory, nfe, bookingCrt, dueNumber, parametrizacao, modal, vessel, dates, financial fields, supplierId (FK to suppliers)
+- **export_orders**: quotationId (FK), invoice, factory, nfe, bookingCrt, dueNumber, parametrizacao, modal, vessel, dates, financial fields, supplierId (FK to suppliers), criadoPor (text, seller name)
 - **order_audit_log**: orderId, action (criação/alteração/exclusão), userName, changes (JSONB diff), snapshot (JSONB), createdAt
 
 ## Key Features
@@ -89,6 +90,14 @@ shared/
   - Color-coded urgency badges: Vencido (red), Urgente (orange), Próximo (yellow), Futuro (blue)
   - Filters by urgency level and country
   - Table with all pending invoices sorted by urgency priority
+- **Commission Report (/commissions)**: Calculates seller commissions from export orders
+  - Summary cards: Total Prevista, Total Devida, Total Paga (all in BRL), # Ordens com Comissão
+  - Business rules: status "Prevista" (order open/no vessel), "Devida" (shipped/payment received/overdue), "Paga" (manually confirmed)
+  - Calculation: totalUSD × comissaoPct% × exchangeClose (from order)
+  - Finance team can mark commissions as "Paga" or revert; CSV export
+  - comissaoPct configured per user in Cadastros → Usuários
+  - Seller identified by `criadoPor` field on the order matched to platform_users.name
+- **Creator tracking**: `criadoPor` field on quotations and orders records which platform user created each record; sidebar user selector persists in localStorage
 - Reports section with two tabs:
   - **Exportações**: expandable order details, full audit history timeline with field-level diffs
   - **Vencimentos**: compact version of due dates (also available in dedicated /vencimentos page)

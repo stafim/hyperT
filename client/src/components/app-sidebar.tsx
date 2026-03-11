@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, Package, FileText, CircleDollarSign, Factory, ClipboardList, FileCheck, CalendarClock, TrendingUp, UserCog, Globe, FolderLock, ShieldCheck, AlertTriangle, BrainCircuit, SlidersHorizontal, BellRing, UserCircle2, ChevronDown } from "lucide-react";
+import { LayoutDashboard, Users, Package, FileText, CircleDollarSign, Factory, ClipboardList, FileCheck, CalendarClock, TrendingUp, UserCog, Globe, FolderLock, ShieldCheck, AlertTriangle, BrainCircuit, SlidersHorizontal, BellRing, UserCircle2, ChevronDown, Percent } from "lucide-react";
 import logoPath from "@assets/Captura_de_tela_2026-02-27_111909_1772203458683.png";
 import { useLocation, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -35,6 +35,7 @@ const mainItems = [
 
 const financeiroItems = [
   { title: "Vencimentos", url: "/vencimentos", icon: CalendarClock },
+  { title: "Comissões", url: "/commissions", icon: Percent },
 ];
 
 const operacaoStaticItems = [

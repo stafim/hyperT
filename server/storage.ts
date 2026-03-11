@@ -3,7 +3,7 @@ import { count as drizzleCount } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import {
-  suppliers, clients, clientDocuments, products, quotations, quotationSendLog, quotationNotes, exportOrders, orderAuditLog, platformUsers, shipmentTracking,
+  suppliers, clients, clientDocuments, products, quotations, quotationSendLog, quotationNotes, exportOrders, orderAuditLog, platformUsers, commissionRecords, shipmentTracking,
   documentos, documentoAuditLog, lpco, audioProTopicsConfig, audioProCustomTopics, aiQueryHistory, telegramNotificationConfig,
   type Supplier, type InsertSupplier,
   type Client, type InsertClient,
@@ -15,6 +15,7 @@ import {
   type ExportOrderWithDetails,
   type OrderAuditLogEntry,
   type PlatformUser, type InsertPlatformUser,
+  type CommissionRecord,
   type ShipmentTracking, type InsertShipmentTracking,
   type Documento, type InsertDocumento, type DocumentoAuditEntry,
   type Lpco, type InsertLpco,
@@ -77,6 +78,10 @@ export interface IStorage {
   createPlatformUser(data: InsertPlatformUser): Promise<PlatformUser>;
   updatePlatformUser(id: number, data: Partial<InsertPlatformUser>): Promise<PlatformUser | undefined>;
   deletePlatformUser(id: number): Promise<void>;
+
+  getCommissionRecord(orderId: number): Promise<CommissionRecord | undefined>;
+  upsertCommissionRecord(orderId: number, status: "prevista" | "devida" | "paga", notes?: string): Promise<CommissionRecord>;
+  getCommissionRecords(): Promise<CommissionRecord[]>;
 
   getShipmentTracking(orderId: number): Promise<ShipmentTracking | undefined>;
   upsertShipmentTracking(data: InsertShipmentTracking): Promise<ShipmentTracking>;
@@ -506,6 +511,30 @@ export class DatabaseStorage implements IStorage {
 
   async deletePlatformUser(id: number): Promise<void> {
     await db.delete(platformUsers).where(eq(platformUsers.id, id));
+  }
+
+  async getCommissionRecord(orderId: number): Promise<CommissionRecord | undefined> {
+    const [rec] = await db.select().from(commissionRecords).where(eq(commissionRecords.orderId, orderId));
+    return rec;
+  }
+
+  async upsertCommissionRecord(orderId: number, status: "prevista" | "devida" | "paga", notes?: string): Promise<CommissionRecord> {
+    const existing = await this.getCommissionRecord(orderId);
+    if (existing) {
+      const [rec] = await db.update(commissionRecords)
+        .set({ status, notes: notes ?? existing.notes, paidAt: status === "paga" ? new Date() : existing.paidAt })
+        .where(eq(commissionRecords.orderId, orderId))
+        .returning();
+      return rec;
+    }
+    const [rec] = await db.insert(commissionRecords)
+      .values({ orderId, status, notes, paidAt: status === "paga" ? new Date() : null })
+      .returning();
+    return rec;
+  }
+
+  async getCommissionRecords(): Promise<CommissionRecord[]> {
+    return db.select().from(commissionRecords);
   }
 
   async getDashboardStats(filters?: { startDate?: string; endDate?: string }) {
