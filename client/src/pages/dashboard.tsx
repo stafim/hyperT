@@ -1003,7 +1003,7 @@ const SECTION_LABELS: { value: SectionFilter; label: string }[] = [
 
 export default function Dashboard() {
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodPreset>("year");
-  const [selectedSection, setSelectedSection] = useState<SectionFilter>("all");
+  const [selectedSection, setSelectedSection] = useState<SectionFilter>("cotacoes");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
   const [drillDown, setDrillDown] = useState<DrillDownState>(null);
