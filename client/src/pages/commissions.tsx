@@ -30,6 +30,7 @@ interface CommissionRow {
   commissionBaseUSD: number;
   comissaoPct: number;
   exchangeRate: number;
+  exchangeRateIsEstimate: boolean;
   commissionBRL: number;
   statusPagamento: string;
   statusComissao: "prevista" | "devida" | "paga";
@@ -140,7 +141,7 @@ export default function Commissions() {
   }, [rows]);
 
   const ordensWithoutVendedor = rows.filter((r) => r.vendedor === "—").length;
-  const ordensWithoutRate = rows.filter((r) => r.comissaoPct > 0 && r.exchangeRate === 0).length;
+  const ordensWithoutRate = rows.filter((r) => r.comissaoPct > 0 && r.exchangeRate === 0 && !r.exchangeRateIsEstimate).length;
 
   function exportCSV() {
     const header = ["Ordem", "Invoice", "Vendedor", "Cliente", "País", "Produto", "Total USD", "Base Comissão USD", "% Comissão", "Taxa Câmbio", "Comissão BRL", "Status Pagamento", "Status Comissão", "Data Embarque"];
@@ -344,16 +345,26 @@ export default function Commissions() {
                       {row.exchangeRate > 0 ? (
                         <Tooltip>
                           <TooltipTrigger>
-                            <span className="cursor-help">R$ {row.exchangeRate.toFixed(4)}</span>
+                            <span className={`cursor-help ${row.exchangeRateIsEstimate ? "text-muted-foreground" : ""}`}>
+                              R$ {row.exchangeRate.toFixed(4)}{row.exchangeRateIsEstimate ? "*" : ""}
+                            </span>
                           </TooltipTrigger>
-                          <TooltipContent>Taxa de fechamento da Ordem</TooltipContent>
+                          <TooltipContent>
+                            {row.exchangeRateIsEstimate
+                              ? "Taxa de câmbio estimada (cotação atual). Defina o câmbio de fechamento na Ordem para o valor exato."
+                              : "Taxa de fechamento da Ordem"}
+                          </TooltipContent>
                         </Tooltip>
                       ) : (
                         <span className="text-muted-foreground text-xs">Sem taxa</span>
                       )}
                     </TableCell>
                     <TableCell className="text-right font-semibold text-green-700 dark:text-green-400">
-                      {hasCommission && row.exchangeRate > 0 ? fmtBRL(row.commissionBRL) : (
+                      {hasCommission && row.commissionBRL > 0 ? (
+                        <span className={row.exchangeRateIsEstimate ? "text-muted-foreground font-normal" : ""}>
+                          {fmtBRL(row.commissionBRL)}{row.exchangeRateIsEstimate ? "*" : ""}
+                        </span>
+                      ) : (
                         <span className="text-muted-foreground font-normal text-xs">—</span>
                       )}
                     </TableCell>
@@ -447,7 +458,7 @@ export default function Commissions() {
       <div className="rounded-lg bg-muted/40 border px-4 py-3 text-xs text-muted-foreground space-y-1">
         <p className="font-medium text-foreground text-sm">Como funciona o cálculo</p>
         <p><span className="font-medium">Base de Cálculo:</span> Valor total da ordem (FOB/EXW em USD) × % de comissão do vendedor</p>
-        <p><span className="font-medium">Câmbio:</span> Taxa de fechamento registrada na Ordem de Exportação (campo "Câmbio de Fechamento")</p>
+        <p><span className="font-medium">Câmbio:</span> Taxa de fechamento registrada na Ordem. Valores com <strong>*</strong> usam cotação atual como estimativa — defina o câmbio de fechamento na Ordem para o valor exato.</p>
         <p><span className="font-medium">Prevista:</span> Ordem pendente sem embarque confirmado</p>
         <p><span className="font-medium">Devida:</span> Ordem embarcada (data de embarque atingida, vessel em movimento) ou pagamento recebido/atrasado</p>
         <p><span className="font-medium">Paga:</span> Comissão marcada como liquidada pelo gestor financeiro</p>

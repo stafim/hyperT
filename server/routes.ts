@@ -492,6 +492,17 @@ export async function registerRoutes(
         storage.getCommissionRecords(),
       ]);
 
+      // Fetch current USD/BRL rate as fallback for orders without exchange close
+      let fallbackRate = 0;
+      try {
+        const today = new Date().toISOString().split("T")[0];
+        const rateRes = await fetch(`https://api.frankfurter.app/latest?from=USD&to=BRL`);
+        if (rateRes.ok) {
+          const rateData: any = await rateRes.json();
+          fallbackRate = rateData.rates?.BRL ?? 0;
+        }
+      } catch { /* silently continue if rate fetch fails */ }
+
       const commRecordsByOrderId = new Map(commRecords.map((r) => [r.orderId, r]));
 
       const today = new Date();
@@ -501,7 +512,9 @@ export async function registerRoutes(
         const seller = users.find((u) => u.name === sellerName);
         const comissaoPct = seller ? parseFloat(seller.comissaoPct ?? "0") : 0;
         const totalUSD = parseFloat(String(order.total)) || 0;
-        const exchangeRate = parseFloat(String(order.exchangeClose ?? "0")) || 0;
+        const closingRate = parseFloat(String(order.exchangeClose ?? "0")) || 0;
+        const exchangeRate = closingRate > 0 ? closingRate : fallbackRate;
+        const exchangeRateIsEstimate = closingRate === 0 && fallbackRate > 0;
         const commissionBaseUSD = totalUSD;
         const commissionBRL = exchangeRate > 0 ? commissionBaseUSD * (comissaoPct / 100) * exchangeRate : 0;
 
@@ -531,6 +544,7 @@ export async function registerRoutes(
           commissionBaseUSD,
           comissaoPct,
           exchangeRate,
+          exchangeRateIsEstimate,
           commissionBRL,
           statusPagamento: order.statusPagamento,
           statusComissao,
