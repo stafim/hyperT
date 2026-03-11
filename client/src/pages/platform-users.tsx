@@ -47,6 +47,8 @@ function UserForm({ editUser, onSuccess }: { editUser: PlatformUser | null; onSu
       : { name: "", email: "", role: "operador", status: "ativo", phone: "", department: "", comissaoPct: "0" },
   });
 
+  const watchedRole = form.watch("role");
+
   const mutation = useMutation({
     mutationFn: (data: InsertPlatformUser) =>
       editUser
@@ -130,34 +132,36 @@ function UserForm({ editUser, onSuccess }: { editUser: PlatformUser | null; onSu
           )} />
         </div>
 
-        <div className="border-t pt-3">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-1">
-            <Percent className="h-3 w-3" /> Comissão sobre Vendas
-          </p>
-          <FormField control={form.control} name="comissaoPct" render={({ field }) => (
-            <FormItem>
-              <FormLabel>Percentual de Comissão (%)</FormLabel>
-              <FormControl>
-                <div className="relative">
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max="100"
-                    placeholder="0.00"
-                    {...field}
-                    value={field.value ?? "0"}
-                    className="pr-8"
-                    data-testid="input-comissao-pct"
-                  />
-                  <Percent className="absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
-                </div>
-              </FormControl>
-              <p className="text-xs text-muted-foreground">Percentual aplicado sobre o valor FOB/EXW das ordens criadas por este vendedor.</p>
-              <FormMessage />
-            </FormItem>
-          )} />
-        </div>
+        {watchedRole === "vendedor" && (
+          <div className="border-t pt-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-1">
+              <Percent className="h-3 w-3" /> Comissão sobre Vendas
+            </p>
+            <FormField control={form.control} name="comissaoPct" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Percentual de Comissão (%)</FormLabel>
+                <FormControl>
+                  <div className="relative">
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max="100"
+                      placeholder="0.00"
+                      {...field}
+                      value={field.value ?? "0"}
+                      className="pr-8"
+                      data-testid="input-comissao-pct"
+                    />
+                    <Percent className="absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                  </div>
+                </FormControl>
+                <p className="text-xs text-muted-foreground">Percentual aplicado sobre o valor FOB/EXW das ordens criadas por este vendedor.</p>
+                <FormMessage />
+              </FormItem>
+            )} />
+          </div>
+        )}
 
         <div className="rounded-lg bg-muted/50 border p-3 text-xs text-muted-foreground space-y-1">
           <p className="font-medium text-foreground">Permissões por perfil:</p>

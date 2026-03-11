@@ -399,7 +399,7 @@ export class DatabaseStorage implements IStorage {
       unitPrice: row.unit_price, quantity: row.quantity, total: row.total,
       paymentTerms: row.payment_terms, dueDate: row.due_date, paymentDate: row.payment_date,
       acc: row.acc, exchangeClose: row.exchange_close, statusPagamento: row.status_pagamento,
-      vesselStatus: row.vessel_status, notificacoesAtivas: row.notificacoes_ativas, createdAt: row.created_at,
+      vesselStatus: row.vessel_status, notificacoesAtivas: row.notificacoes_ativas, criadoPor: row.criado_por, vendedor: row.vendedor, createdAt: row.created_at,
       client: { id: row.c_id, name: row.c_name, country: row.c_country, creditLimit: row.c_credit_limit, paymentTerms: row.c_payment_terms },
       product: { id: row.p_id, type: row.p_type, grammage: row.p_grammage, standardPrice: row.p_standard_price, supplierId: row.p_supplier_id },
       supplier: row.s_id ? { id: row.s_id, name: row.s_name, cnpj: row.s_cnpj, contact: row.s_contact, phone: row.s_phone, email: row.s_email, city: row.s_city, state: row.s_state } : null,
