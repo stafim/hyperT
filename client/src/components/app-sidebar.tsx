@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, Package, FileText, CircleDollarSign, Factory, ClipboardList, FileCheck, CalendarClock, TrendingUp, UserCog, Globe, FolderLock, ShieldCheck, AlertTriangle, BrainCircuit, SlidersHorizontal, BellRing, UserCircle2, ChevronDown, Percent } from "lucide-react";
+import { LayoutDashboard, Users, Package, FileText, CircleDollarSign, Factory, ClipboardList, FileCheck, CalendarClock, TrendingUp, UserCog, Globe, FolderLock, ShieldCheck, AlertTriangle, BrainCircuit, SlidersHorizontal, BellRing, UserCircle2, ChevronDown, Percent, Map } from "lucide-react";
 import logoPath from "@assets/Captura_de_tela_2026-02-27_111909_1772203458683.png";
 import { useLocation, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -44,6 +44,7 @@ const operacaoStaticItems = [
   { title: "Rastreabilidade", url: "/rastreabilidade", icon: Globe },
   { title: "Documentação Cambial", url: "/documentos", icon: FolderLock },
   { title: "Câmbio", url: "/quotes", icon: CircleDollarSign },
+  { title: "Maps", url: "/maps", icon: Map },
 ];
 
 const cadastroItems = [

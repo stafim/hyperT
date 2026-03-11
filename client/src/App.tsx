@@ -26,6 +26,7 @@ import QueryAI from "@/pages/query-ai";
 import CalibragemIA from "@/pages/calibragem-ia";
 import TelegramConfig from "@/pages/telegram-config";
 import Commissions from "@/pages/commissions";
+import Maps from "@/pages/maps";
 import PortalLogin from "@/pages/portal-login";
 import PortalDashboard from "@/pages/portal-dashboard";
 
@@ -59,6 +60,7 @@ function MainRouter() {
       <Route path="/calibragem-ia" component={CalibragemIA} />
       <Route path="/telegram-config" component={TelegramConfig} />
       <Route path="/commissions" component={Commissions} />
+      <Route path="/maps" component={Maps} />
       <Route component={NotFound} />
     </Switch>
   );
