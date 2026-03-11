@@ -79,11 +79,19 @@ export default function Commissions() {
   const updateMutation = useMutation({
     mutationFn: ({ orderId, status, notes }: { orderId: number; status: string; notes?: string }) =>
       apiRequest("PATCH", `/api/commissions/${orderId}`, { status, notes }),
+    onMutate: ({ orderId, status }) => {
+      queryClient.setQueryData(["/api/commissions"], (old: CommissionRow[] | undefined) =>
+        old?.map((r) => r.orderId === orderId ? { ...r, statusComissao: status as CommissionRow["statusComissao"] } : r) ?? old
+      );
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/commissions"] });
       toast({ title: "Comissão atualizada" });
     },
-    onError: (e: Error) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
+    onError: (e: Error) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/commissions"] });
+      toast({ title: "Erro", description: e.message, variant: "destructive" });
+    },
   });
 
   const vendedores = useMemo(() => {
